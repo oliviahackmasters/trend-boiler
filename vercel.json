@@ -1,8 +1,7 @@
 {
   "functions": {
     "api/*.js": {
-      "maxDuration": 60,
-      "maxPayloadSize": 100
+      "maxDuration": 60
     }
   },
   "headers": [

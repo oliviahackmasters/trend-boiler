@@ -40,6 +40,15 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: "Only PDF files are allowed" });
         }
 
+        // Validate file size (limit to 50MB)
+        const maxFileSize = 50 * 1024 * 1024; // 50MB
+        if (fileBuffer.length > maxFileSize) {
+          return res.status(413).json({
+            error: "File too large",
+            details: `File size ${(fileBuffer.length / 1024 / 1024).toFixed(2)}MB exceeds limit of 50MB`
+          });
+        }
+
         // ✅ FIX: was hardcoded to private R2 storage URL.
         // Now uses publicUrlForKey() which reads R2_PUBLIC_BASE_URL env var.
         const key = `uploads/${crypto.randomUUID()}-${filename}`;

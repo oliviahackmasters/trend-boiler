@@ -472,6 +472,7 @@
     color: var(--hm-copper);
     font-size: 12px;
     margin: 0;
+    display:block;
   }
   #hmTrendChat .hm-mapControls{
     display:flex;
@@ -564,30 +565,36 @@
 
       <div class="hm-divider"></div>
 
-      <div class="hm-row">
-        <input class="hm-file" type="file" id="hmFiles" accept="application/pdf" multiple />
-        <button class="hm-btn" id="hmUpload">UPLOAD PDFS</button>
+      <div class="hm-libHeader">
+        <div class="hm-lib-title" style="margin:0;">LIBRARY</div>
+        <button class="hm-btn hm-libToggle" id="hmLibToggle">HIDE</button>
       </div>
+
       <div class="hm-row">
+        <input
+          class="hm-file hm-hidden"
+          type="file"
+          id="hmFiles"
+          accept="application/pdf"
+          multiple
+        />
+
+        <button class="hm-btn" id="hmUpload">UPLOAD PDFS</button>
         <input class="hm-urlInput" type="url" id="hmUrl" placeholder="PASTE ARTICLE OR WEB REPORT URL..." />
         <button class="hm-btn" id="hmAddUrl">ADD URL</button>
       </div>
 
       <div class="hm-divider"></div>
 
-      <div class="hm-libHeader">
-        <div class="hm-lib-title" style="margin:0;">LIBRARY</div>
-        <button class="hm-btn hm-libToggle" id="hmLibToggle">HIDE</button>
-      </div>
+
       <div id="hmLibrary" style="margin-top:10px;"></div>
   
-            <div class="hm-divider"></div>
+      <div class="hm-divider"></div>
 
-
-      <div class="hm-mapTop">
     <div class="hm-mapTitle">FUTURE MAP</div>
+    <div class="hm-mapTop">
     <div class="hm-mapControls">
-      <input class="hm-mapInput" id="hmMapTheme" placeholder="Generate a future map based on… (e.g. Retail, Health, AI in education)" />
+      <input class="hm-mapInput" id="hmMapTheme" placeholder="Impact on..." />
       <button class="hm-btn" id="hmMapGen">GENERATE</button>
       <button class="hm-btn" id="hmMapPng" disabled>DOWNLOAD PNG</button>
     </div>
@@ -652,18 +659,16 @@
       <div class="hm-chat" id="hmChat"></div>
 
       <div class="hm-promptPanel">
-        <div class="hm-promptTitle">PROMPT TIPS</div>
+        <div class="hm-promptTitle">STARTERS FOR TEN</div>
         <div class="hm-prompts">
-          <button type="button" class="hm-prompt" data-prompt-template="Generate drivers for AI in {sector}">Try asking for drivers</button>
-          <button type="button" class="hm-prompt" data-prompt-template="Build a 2x2 scenario matrix for AI in {sector} using the two biggest uncertainties">Try a scenario matrix</button>
-          <button type="button" class="hm-prompt" data-prompt-template="Identify weak signals for AI in {sector} and cite the evidence from the reports">Try weak signals</button>
-          <button type="button" class="hm-prompt" data-prompt-template="Compare consumer, channel and brand implications for AI in {sector} over the next 3 years">Try implications</button>
-          <button type="button" class="hm-prompt" data-map-theme-template="AI in {sector}">Try a future map</button>
+          <button type="button" class="hm-prompt" data-prompt-template="Generate drivers">Generate drivers</button>
+          <button type="button" class="hm-prompt" data-prompt-template="Identify new enabling capabilities driving change in the sector">Identify Capabilities</button>
+          <button type="button" class="hm-prompt" data-prompt-template="Critical assumptions">Critical assumptions</button>
         </div>
       </div>
 
       <div class="hm-inputRow">
-        <textarea class="hm-input hm-textarea" id="hmQ" rows="1" placeholder="ASK ABOUT TRENDS, INSIGHTS, OR A SPECIFIC REPORT…"></textarea>
+        <textarea class="hm-input hm-textarea" id="hmQ" rows="1" placeholder="Theme, Impact, Time Horizon..."></textarea>
         <button class="hm-btn" id="hmAsk">SEND</button>
         <button class="hm-btn" id="hmDownloadChatPng">EXPORT SUMMARY</button>
       </div>
@@ -706,8 +711,6 @@
     // Reset conversation when switching context
     history = [];
     chatEl.innerHTML = "";
-    addSys(`SWITCHED TO ${sector.toUpperCase()} SECTOR`);
-
     refreshLibrary();
   }
 
@@ -985,7 +988,7 @@ libToggleBtn.textContent = "SHOW";
   function addSys(text, isError=false){
     // status bar + also log into chat (clearer)
     setStatus(text, isError);
-    addMsg("ai", text);
+    // addMsg("ai", text);
   }
 
   async function ensureSession(){
@@ -1355,7 +1358,15 @@ libToggleBtn.textContent = "SHOW";
   }
 
   // Events
-  uploadBtn.addEventListener("click", uploadFiles);
+  uploadBtn.addEventListener("click", () => {
+    fileEl.click();
+  });
+
+  fileEl.addEventListener("change", async () => {
+    if (!fileEl.files || !fileEl.files.length) return;
+    await uploadFiles();
+  });
+
   addUrlBtn.addEventListener("click", ingestUrl);
 
   urlEl.addEventListener("keydown", (e) => {
@@ -1397,7 +1408,11 @@ libToggleBtn.textContent = "SHOW";
       qEl.value = fillPromptTemplate(promptTemplate);
       autoSizeTextarea(qEl);
       qEl.focus();
-    });
+      const q = (qEl.value || "").trim();
+      if (!q) return;
+      qEl.value = "";
+      ask(q);
+      });
   });
 
   newBtn.addEventListener("click", () => {

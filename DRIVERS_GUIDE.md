@@ -63,7 +63,7 @@ POST /api/drivers
     },
     "wildcard": {
       "label": "Wildcard Drivers",
-      "description": "Unlikely, but if it happens it would be a big deal",
+      "description": "Unlikely, but big impact",
       "items": [
         "Legislation restricting AI in creative industries",
         "Major breakthrough in conscious AI materials sourcing"

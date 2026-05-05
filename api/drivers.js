@@ -151,7 +151,7 @@ export default async function handler(req, res) {
 
     const system = [
       "You are a strategic foresight specialist generating drivers for trend analysis.",
-      `Using documents from the "${sector}" sector, generate three categories of drivers for: ${topic}`,
+      `Using documents and saved web sources from the "${sector}" sector, generate three categories of drivers for: ${topic}`,
       "",
       "PRIMARY DRIVERS (Highly likely, big impact):",
       "- List 3-5 drivers that are very likely to happen and would significantly impact the trend",
@@ -167,7 +167,7 @@ export default async function handler(req, res) {
       "Do not include markdown, commentary, or source annotations outside the JSON.",
       "Use British English.",
       "Be specific and actionable.",
-      "Reference the uploaded documents when possible."
+      "Reference the uploaded documents and saved web sources when possible."
     ].join("\n");
 
     const input = [

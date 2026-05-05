@@ -122,6 +122,19 @@
     border-radius: 0;
     font-size: 12px;
   }
+  #hmTrendChat .hm-urlInput{
+    flex: 1 1 360px;
+    min-width: 220px;
+    background: transparent;
+    color: var(--hm-white);
+    border: 1px solid var(--hm-copper);
+    padding: 12px;
+    border-radius: 0;
+    outline:none;
+    font-size: 13px;
+    height: 44px;
+  }
+  #hmTrendChat .hm-urlInput::placeholder{ color: rgba(255,255,255,0.65); }
   #hmTrendChat input[type="file"]::file-selector-button{
     border: 1px solid var(--hm-copper);
     background: transparent;
@@ -215,6 +228,14 @@
 
   /* Markdown-ish formatting in assistant messages */
   #hmTrendChat .hm-msg-body p{ margin: 0 0 10px 0; }
+  #hmTrendChat .hm-md-heading{
+    margin: 12px 0 8px 0;
+    color: var(--hm-white);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 13px;
+  }
   #hmTrendChat .hm-msg-body strong{
     color: var(--hm-copper);
     font-weight: 700;
@@ -254,6 +275,11 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.8px;
+  }
+  #hmTrendChat .hm-md-table th:first-child,
+  #hmTrendChat .hm-md-table td:first-child{
+    min-width: 120px;
+    width: 120px;
   }
 
   /* Drivers */
@@ -524,7 +550,7 @@
         <span>TREND BOILER</span>
       </div>
       <p class="hm-sub">
-        Upload trend reports (PDF) and ask questions grounded in your documents.
+        Upload trend reports (PDF), add article/report URLs, and ask questions grounded in your library.
       </p>
 
       <div class="hm-row">
@@ -541,6 +567,10 @@
       <div class="hm-row">
         <input class="hm-file" type="file" id="hmFiles" accept="application/pdf" multiple />
         <button class="hm-btn" id="hmUpload">UPLOAD PDFS</button>
+      </div>
+      <div class="hm-row">
+        <input class="hm-urlInput" type="url" id="hmUrl" placeholder="PASTE ARTICLE OR WEB REPORT URL..." />
+        <button class="hm-btn" id="hmAddUrl">ADD URL</button>
       </div>
 
       <div class="hm-divider"></div>
@@ -642,7 +672,9 @@
 
   const statusEl = mount.querySelector("#hmStatus");
   const fileEl = mount.querySelector("#hmFiles");
+  const urlEl = mount.querySelector("#hmUrl");
   const uploadBtn = mount.querySelector("#hmUpload");
+  const addUrlBtn = mount.querySelector("#hmAddUrl");
   const askBtn = mount.querySelector("#hmAsk");
   const qEl = mount.querySelector("#hmQ");
   const chatEl = mount.querySelector("#hmChat");
@@ -763,29 +795,50 @@ libToggleBtn.textContent = "SHOW";
 
   function formatMarkdownToHtml(text){
     const src = String(text || "");
-    const safe = escapeHtml(src);
+    const safe = cleanAssistantMarkup(escapeHtml(src));
 
     const blocks = safe.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    return blocks.map(renderMarkdownBlock).join("");
+  }
 
-    return blocks.map(block => {
-      let b = block.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-      const lines = b.split("\n").map(l => l.trim()).filter(Boolean);
+  function cleanAssistantMarkup(html){
+    return String(html || "")
+      .replace(/【[^】]*†source[^】]*】/g, "")
+      .replace(/\[[^\]]*†source[^\]]*\]/g, "")
+      .replace(/[ \t]+([.,;:])/g, "$1");
+  }
 
-      if (isMarkdownTable(lines)){
-        return renderMarkdownTable(lines);
-      }
+  function formatInlineMarkdown(text){
+    return String(text || "")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+  }
 
-      const isList = lines.length > 1 && lines.every(l => /^(\-|\•|\*|\d+\.)\s+/.test(l));
-      if (isList){
-        const isOrdered = lines.every(l => /^\d+\.\s+/.test(l));
-        const items = lines.map(l => l.replace(/^(\-|\•|\*|\d+\.)\s+/, "").trim());
-        return isOrdered
-          ? `<ol>${items.map(i => `<li>${i}</li>`).join("")}</ol>`
-          : `<ul>${items.map(i => `<li>${i}</li>`).join("")}</ul>`;
-      }
+  function renderMarkdownBlock(block){
+    const lines = String(block || "").split("\n").map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return "";
 
-      return `<p>${b.replace(/\n/g, "<br>")}</p>`;
-    }).join("");
+    const heading = lines[0].match(/^(#{1,6})\s+(.+)$/);
+    if (heading){
+      const headingHtml = `<p class="hm-md-heading">${formatInlineMarkdown(heading[2])}</p>`;
+      const rest = lines.slice(1).join("\n").trim();
+      return headingHtml + (rest ? renderMarkdownBlock(rest) : "");
+    }
+
+    if (isMarkdownTable(lines)){
+      return renderMarkdownTable(lines);
+    }
+
+    const isList = lines.length > 1 && lines.every(l => /^(\-|\•|\*|\d+\.)\s+/.test(l));
+    if (isList){
+      const isOrdered = lines.every(l => /^\d+\.\s+/.test(l));
+      const items = lines.map(l => l.replace(/^(\-|\•|\*|\d+\.)\s+/, "").trim());
+      return isOrdered
+        ? `<ol>${items.map(i => `<li>${formatInlineMarkdown(i)}</li>`).join("")}</ol>`
+        : `<ul>${items.map(i => `<li>${formatInlineMarkdown(i)}</li>`).join("")}</ul>`;
+    }
+
+    return `<p>${formatInlineMarkdown(block).replace(/\n/g, "<br>")}</p>`;
   }
 
   function isMarkdownTable(lines){
@@ -805,16 +858,15 @@ libToggleBtn.textContent = "SHOW";
   function renderMarkdownTable(lines){
     const headers = splitMarkdownTableRow(lines[0]);
     const rows = lines.slice(2).map(splitMarkdownTableRow);
-    const formatCell = cell => cell.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
     return `
       <div class="hm-tableWrap">
         <table class="hm-md-table">
           <thead>
-            <tr>${headers.map(cell => `<th>${formatCell(cell)}</th>`).join("")}</tr>
+            <tr>${headers.map(cell => `<th>${formatInlineMarkdown(cell)}</th>`).join("")}</tr>
           </thead>
           <tbody>
-            ${rows.map(row => `<tr>${headers.map((_, idx) => `<td>${formatCell(row[idx] || "")}</td>`).join("")}</tr>`).join("")}
+            ${rows.map(row => `<tr>${headers.map((_, idx) => `<td>${formatInlineMarkdown(row[idx] || "")}</td>`).join("")}</tr>`).join("")}
           </tbody>
         </table>
       </div>
@@ -960,12 +1012,16 @@ libToggleBtn.textContent = "SHOW";
       const topics = (x.tags?.topics || []).join(", ");
       const year = x.tags?.year || "";
       const company = x.tags?.company || "";
+      const sourceUrl = x.sourceUrl || "";
+      const sourceType = x.sourceType === "pdf-url" ? "PDF URL" : (x.sourceType === "url" ? "URL" : "PDF");
 
       return `
         <div class="hm-lib-row">
           <div class="hm-lib-meta">
             <div><strong>${escapeHtml(x.filename || x.pathname || "REPORT")}</strong></div>
             <div class="hm-lib-tags">
+              TYPE: ${escapeHtml(sourceType)}<br>
+              ${sourceUrl ? `SOURCE: ${escapeHtml(sourceUrl)}<br>` : ""}
               ADDED: ${escapeHtml(fmtDate(x.addedAt))}<br>
               YEAR: ${escapeHtml(year)} &nbsp; | &nbsp;
               COMPANY: ${escapeHtml(company)}<br>
@@ -1035,6 +1091,7 @@ libToggleBtn.textContent = "SHOW";
   await ensureSession();
 
   uploadBtn.disabled = true;
+  addUrlBtn.disabled = true;
   askBtn.disabled = true;
   setStatus("UPLOADING…");
 
@@ -1150,9 +1207,52 @@ libToggleBtn.textContent = "SHOW";
     addSys("UPLOAD ERROR: " + (e.message || e), true);
   } finally {
     uploadBtn.disabled = false;
+    addUrlBtn.disabled = false;
     askBtn.disabled = false;
   }
 }
+
+  async function ingestUrl(){
+    const sourceUrl = (urlEl.value || "").trim();
+    if (!sourceUrl) return addSys("PASTE A URL FIRST", true);
+
+    await ensureSession();
+
+    uploadBtn.disabled = true;
+    addUrlBtn.disabled = true;
+    askBtn.disabled = true;
+    setStatus("ADDING URL…");
+
+    const tags = {
+      year: (tagYearEl?.value || "").trim(),
+      company: (tagCompanyEl?.value || "").trim(),
+      topics: (tagTopicsEl?.value || "")
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean)
+    };
+
+    try{
+      const resp = await fetch(`${API_BASE}/api/ingest-url`, {
+        method: "POST",
+        headers: headersJson(),
+        body: JSON.stringify({ sector: currentSector, url: sourceUrl, tags })
+      });
+      const data = await resp.json().catch(()=>({}));
+      if (!resp.ok) throw new Error((data.error || "URL INGEST FAILED") + (data.details ? " — " + data.details : ""));
+
+      urlEl.value = "";
+      addSys(data.duplicate ? "URL ALREADY IN LIBRARY" : `ADDED URL: ${data.title || data.filename || sourceUrl} ✅`);
+      await refreshLibrary();
+      setStatus("URL ADDED");
+    } catch(e){
+      addSys("URL ERROR: " + (e.message || e), true);
+    } finally {
+      uploadBtn.disabled = false;
+      addUrlBtn.disabled = false;
+      askBtn.disabled = false;
+    }
+  }
 
   async function generateDrivers(prompt, topic){
     const cleanTopic = String(topic || "").trim();
@@ -1166,6 +1266,7 @@ libToggleBtn.textContent = "SHOW";
 
     askBtn.disabled = true;
     uploadBtn.disabled = true;
+    addUrlBtn.disabled = true;
 
     try{
       const resp = await fetch(API_BASE + "/api/drivers", {
@@ -1189,6 +1290,7 @@ libToggleBtn.textContent = "SHOW";
     } finally {
       askBtn.disabled = false;
       uploadBtn.disabled = false;
+      addUrlBtn.disabled = false;
     }
   }
 
@@ -1221,6 +1323,7 @@ libToggleBtn.textContent = "SHOW";
 
     askBtn.disabled = true;
     uploadBtn.disabled = true;
+    addUrlBtn.disabled = true;
 
     try{
       const resp = await fetch(API_BASE + "/api/ask", {
@@ -1247,11 +1350,20 @@ libToggleBtn.textContent = "SHOW";
     } finally {
       askBtn.disabled = false;
       uploadBtn.disabled = false;
+      addUrlBtn.disabled = false;
     }
   }
 
   // Events
   uploadBtn.addEventListener("click", uploadFiles);
+  addUrlBtn.addEventListener("click", ingestUrl);
+
+  urlEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addUrlBtn.click();
+    }
+  });
 
   askBtn.addEventListener("click", () => {
     const q = (qEl.value || "").trim();

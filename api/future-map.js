@@ -32,7 +32,7 @@ export default async function handler(req, res) {
 
     // IMPORTANT: we force strict JSON so the frontend can render without hacks
     const prompt = `
-You are a trends research assistant. Use ONLY the documents in the vector store.
+You are a trends research assistant. Use ONLY the documents and saved web sources in the vector store.
 
 Task: Build a "Future Map" for the theme: "${theme}".
 

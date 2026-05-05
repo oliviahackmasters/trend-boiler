@@ -141,21 +141,38 @@
 
   #hmTrendChat .hm-prompts{
     display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 10px;
-    margin-top: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+    margin: 10px 0 0 0;
+  }
+  #hmTrendChat .hm-promptPanel{
+    border: 1px solid rgba(209,128,87,0.45);
+    background: rgba(255,255,255,0.015);
+    padding: 10px;
+    margin-top: 12px;
+  }
+  #hmTrendChat .hm-promptTitle{
+    margin: 0;
+    color: var(--hm-copper);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: 1px;
+    text-transform: uppercase;
   }
   #hmTrendChat .hm-prompt{
     text-align:left;
-    padding: 12px;
+    padding: 9px 10px;
     border: 1px solid var(--hm-copper);
     background: rgba(255,255,255,0.02);
     color: var(--hm-white);
     border-radius: 0;
     cursor:pointer;
     font-weight: 600;
-    font-size: 13px;
+    font-size: 11px;
     line-height: 1.35;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
   }
   #hmTrendChat .hm-prompt:hover{
     background: rgba(209,128,87,0.18);
@@ -210,6 +227,34 @@
     padding: 0;
   }
   #hmTrendChat .hm-msg-body li{ margin: 6px 0; }
+  #hmTrendChat .hm-tableWrap{
+    width: 100%;
+    overflow-x: auto;
+    margin: 10px 0 12px 0;
+  }
+  #hmTrendChat .hm-md-table{
+    width: 100%;
+    min-width: 620px;
+    border-collapse: collapse;
+    border: 1px solid rgba(209,128,87,0.55);
+    color: rgba(255,255,255,0.92);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  #hmTrendChat .hm-md-table th,
+  #hmTrendChat .hm-md-table td{
+    border: 1px solid rgba(209,128,87,0.42);
+    padding: 9px 10px;
+    vertical-align: top;
+    text-align: left;
+  }
+  #hmTrendChat .hm-md-table th{
+    color: var(--hm-copper);
+    background: rgba(209,128,87,0.10);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
 
   /* Drivers */
   #hmTrendChat .hm-drivers{
@@ -576,6 +621,17 @@
 
       <div class="hm-chat" id="hmChat"></div>
 
+      <div class="hm-promptPanel">
+        <div class="hm-promptTitle">PROMPT TIPS</div>
+        <div class="hm-prompts">
+          <button type="button" class="hm-prompt" data-prompt-template="Generate drivers for AI in {sector}">Try asking for drivers</button>
+          <button type="button" class="hm-prompt" data-prompt-template="Build a 2x2 scenario matrix for AI in {sector} using the two biggest uncertainties">Try a scenario matrix</button>
+          <button type="button" class="hm-prompt" data-prompt-template="Identify weak signals for AI in {sector} and cite the evidence from the reports">Try weak signals</button>
+          <button type="button" class="hm-prompt" data-prompt-template="Compare consumer, channel and brand implications for AI in {sector} over the next 3 years">Try implications</button>
+          <button type="button" class="hm-prompt" data-map-theme-template="AI in {sector}">Try a future map</button>
+        </div>
+      </div>
+
       <div class="hm-inputRow">
         <textarea class="hm-input hm-textarea" id="hmQ" rows="1" placeholder="ASK ABOUT TRENDS, INSIGHTS, OR A SPECIFIC REPORT…"></textarea>
         <button class="hm-btn" id="hmAsk">SEND</button>
@@ -715,6 +771,10 @@ libToggleBtn.textContent = "SHOW";
       let b = block.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
       const lines = b.split("\n").map(l => l.trim()).filter(Boolean);
 
+      if (isMarkdownTable(lines)){
+        return renderMarkdownTable(lines);
+      }
+
       const isList = lines.length > 1 && lines.every(l => /^(\-|\•|\*|\d+\.)\s+/.test(l));
       if (isList){
         const isOrdered = lines.every(l => /^\d+\.\s+/.test(l));
@@ -726,6 +786,39 @@ libToggleBtn.textContent = "SHOW";
 
       return `<p>${b.replace(/\n/g, "<br>")}</p>`;
     }).join("");
+  }
+
+  function isMarkdownTable(lines){
+    return lines.length >= 3 &&
+      lines[0].includes("|") &&
+      /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(lines[1]);
+  }
+
+  function splitMarkdownTableRow(line){
+    return String(line || "")
+      .replace(/^\s*\|/, "")
+      .replace(/\|\s*$/, "")
+      .split("|")
+      .map(cell => cell.trim());
+  }
+
+  function renderMarkdownTable(lines){
+    const headers = splitMarkdownTableRow(lines[0]);
+    const rows = lines.slice(2).map(splitMarkdownTableRow);
+    const formatCell = cell => cell.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+    return `
+      <div class="hm-tableWrap">
+        <table class="hm-md-table">
+          <thead>
+            <tr>${headers.map(cell => `<th>${formatCell(cell)}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${rows.map(row => `<tr>${headers.map((_, idx) => `<td>${formatCell(row[idx] || "")}</td>`).join("")}</tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   function extractDriversTopic(question){
@@ -793,7 +886,7 @@ libToggleBtn.textContent = "SHOW";
         <div class="hm-drivers-grid">
           ${renderDriverColumn("primary", drivers.primary, "Primary Drivers", "Highly likely, big impact")}
           ${renderDriverColumn("secondary", drivers.secondary, "Secondary Drivers", "Less likely, relatively big impact")}
-          ${renderDriverColumn("wildcard", drivers.wildcard, "Wildcard Drivers", "Unlikely, but if it happens it would be a big deal")}
+          ${renderDriverColumn("wildcard", drivers.wildcard, "Wildcard Drivers", "Unlikely, but big impact")}
         </div>
       </div>
     `;
@@ -1174,9 +1267,25 @@ libToggleBtn.textContent = "SHOW";
     }
   });
 
+  function fillPromptTemplate(template){
+    const sectorLabel = SECTORS.find(s => s.id === currentSector)?.label || currentSector;
+    return String(template || "").replace(/\{sector\}/g, sectorLabel.toLowerCase());
+  }
 
   mount.querySelectorAll(".hm-prompt").forEach(btn => {
-    btn.addEventListener("click", () => ask(btn.getAttribute("data-prompt")));
+    btn.addEventListener("click", () => {
+      const mapThemeTemplate = btn.getAttribute("data-map-theme-template");
+      if (mapThemeTemplate) {
+        mapThemeEl.value = fillPromptTemplate(mapThemeTemplate);
+        mapThemeEl.focus();
+        return;
+      }
+
+      const promptTemplate = btn.getAttribute("data-prompt-template") || "";
+      qEl.value = fillPromptTemplate(promptTemplate);
+      autoSizeTextarea(qEl);
+      qEl.focus();
+    });
   });
 
   newBtn.addEventListener("click", () => {

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trend Drivers Generator</title>
+  <link rel="stylesheet" href="drivers.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #f5f5f5;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      color: #1a1a1a;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 1.1rem;
+    }
+
+    .input-section {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 2rem;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .input-group label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .input-group label span {
+      font-weight: 600;
+      color: #333;
+      font-size: 0.9rem;
+    }
+
+    .input-group input,
+    .input-group select {
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+      min-width: 300px;
+    }
+
+    .input-group input:focus,
+    .input-group select:focus {
+      outline: none;
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    }
+
+    .input-group button {
+      padding: 0.75rem 2rem;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.3s ease;
+    }
+
+    .input-group button:hover {
+      background: #059669;
+    }
+
+    .input-group button:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+    }
+
+    .results-section {
+      display: none;
+    }
+
+    .results-section.active {
+      display: block;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      font-size: 1.1rem;
+      color: #666;
+    }
+
+    .loading::after {
+      content: "";
+      display: inline-block;
+      animation: spin 1s linear infinite;
+      margin-left: 0.5rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .error {
+      background: #fee;
+      border-left: 4px solid #ef4444;
+      padding: 1rem;
+      border-radius: 4px;
+      color: #b91c1c;
+      margin-bottom: 1rem;
+    }
+
+    .raw-response {
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-top: 2rem;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .raw-response.hidden {
+      display: none;
+    }
+
+    .toggle-raw {
+      margin-top: 1rem;
+      color: #10b981;
+      cursor: pointer;
+      font-weight: 600;
+      user-select: none;
+    }
+
+    .toggle-raw:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎯 Trend Drivers Generator</h1>
+    <p>Generate primary, secondary, and wildcard drivers for any trend or topic</p>
+  </div>
+
+  <div class="input-section">
+    <div class="input-group">
+      <label>
+        <span>Topic</span>
+        <input type="text" id="topic" placeholder="e.g., AI in Luxury Fashion, Metaverse Adoption, etc." value="AI in Luxury Fashion">
+      </label>
+      <label>
+        <span>Sector</span>
+        <select id="sector">
+          <option value="luxury">Luxury</option>
+          <option value="tech">Tech</option>
+          <option value="healthcare">Healthcare</option>
+          <option value="finance">Finance</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <button id="generateBtn" onclick="generateDrivers()">Generate Drivers</button>
+    </div>
+  </div>
+
+  <div id="resultsSection" class="results-section">
+    <div id="loadingDiv" class="loading" style="display: none;">Generating drivers</div>
+    <div id="errorDiv" class="error" style="display: none;"></div>
+    <div id="driversDiv"></div>
+    <div id="rawResponseDiv" class="raw-response hidden"></div>
+    <div id="toggleRawBtn" class="toggle-raw" onclick="toggleRawResponse()" style="display: none;">Show raw response</div>
+  </div>
+
+  <script>
+    const API_BASE = '/api'; // Change to your API endpoint
+    const DEMO_TOKEN = localStorage.getItem('demoToken') || 'your-demo-token-here'; // Get from your auth system
+
+    async function generateDrivers() {
+      const topic = document.getElementById('topic').value.trim();
+      const sector = document.getElementById('sector').value;
+      const generateBtn = document.getElementById('generateBtn');
+
+      if (!topic) {
+        showError('Please enter a topic');
+        return;
+      }
+
+      const resultsSection = document.getElementById('resultsSection');
+      const loadingDiv = document.getElementById('loadingDiv');
+      const errorDiv = document.getElementById('errorDiv');
+      const driversDiv = document.getElementById('driversDiv');
+      const rawResponseDiv = document.getElementById('rawResponseDiv');
+      const toggleRawBtn = document.getElementById('toggleRawBtn');
+
+      resultsSection.classList.add('active');
+      loadingDiv.style.display = 'block';
+      errorDiv.style.display = 'none';
+      driversDiv.innerHTML = '';
+      generateBtn.disabled = true;
+
+      try {
+        const response = await fetch(`${API_BASE}/drivers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${DEMO_TOKEN}`
+          },
+          body: JSON.stringify({
+            topic,
+            sector,
+            history: []
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `Server error: ${response.status}`);
+        }
+
+        loadingDiv.style.display = 'none';
+        displayDrivers(data);
+
+        // Store raw response for inspection
+        rawResponseDiv.textContent = data.raw_response || '';
+        toggleRawBtn.style.display = 'block';
+
+      } catch (error) {
+        loadingDiv.style.display = 'none';
+        showError(`Error: ${error.message}`);
+      } finally {
+        generateBtn.disabled = false;
+      }
+    }
+
+    function displayDrivers(data) {
+      const driversDiv = document.getElementById('driversDiv');
+      const { drivers, topic } = data;
+
+      let html = `
+        <div class="drivers-container">
+          <h2>Drivers for: ${escapeHtml(topic)}</h2>
+          
+          <div class="drivers-grid">
+      `;
+
+      // Primary Drivers
+      html += createColumn('primary', drivers.primary);
+      // Secondary Drivers
+      html += createColumn('secondary', drivers.secondary);
+      // Wildcard Drivers
+      html += createColumn('wildcard', drivers.wildcard);
+
+      html += `
+          </div>
+        </div>
+      `;
+
+      driversDiv.innerHTML = html;
+    }
+
+    function createColumn(type, columnData) {
+      const { label, description, items } = columnData;
+      const iconMap = { primary: '✓', secondary: '○', wildcard: '⚡' };
+      const icon = iconMap[type];
+
+      let html = `
+        <div class="driver-column driver-${type}">
+          <h3>${icon} ${escapeHtml(label)}</h3>
+          <p class="description">${escapeHtml(description)}</p>
+          <ul class="driver-list">
+      `;
+
+      items.forEach(item => {
+        html += `            <li>${escapeHtml(item)}</li>\n`;
+      });
+
+      html += `
+          </ul>
+        </div>
+      `;
+
+      return html;
+    }
+
+    function showError(message) {
+      const errorDiv = document.getElementById('errorDiv');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      document.getElementById('resultsSection').classList.add('active');
+    }
+
+    function toggleRawResponse() {
+      const rawResponseDiv = document.getElementById('rawResponseDiv');
+      const toggleBtn = document.getElementById('toggleRawBtn');
+      rawResponseDiv.classList.toggle('hidden');
+      toggleBtn.textContent = rawResponseDiv.classList.contains('hidden') ? 'Show raw response' : 'Hide raw response';
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Allow Enter key to generate
+    document.getElementById('topic').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') generateDrivers();
+    });
+  </script>
+</body>
+</html>

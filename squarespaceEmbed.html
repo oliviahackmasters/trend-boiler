@@ -211,6 +211,87 @@
   }
   #hmTrendChat .hm-msg-body li{ margin: 6px 0; }
 
+  /* Drivers */
+  #hmTrendChat .hm-drivers{
+    margin-top: 2px;
+  }
+  #hmTrendChat .hm-drivers-title{
+    margin: 0 0 10px 0;
+    color: var(--hm-white);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    font-size: 13px;
+  }
+  #hmTrendChat .hm-drivers-grid{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  #hmTrendChat .hm-driver-col{
+    min-width: 0;
+    border: 1px solid rgba(209,128,87,0.58);
+    background: rgba(255,255,255,0.02);
+    padding: 10px;
+  }
+  #hmTrendChat .hm-driver-col h3{
+    margin: 0 0 6px 0;
+    color: var(--hm-copper);
+    font-size: 12px;
+    line-height: 1.35;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  #hmTrendChat .hm-driver-desc{
+    margin: 0 0 9px 0;
+    color: rgba(255,255,255,0.78);
+    font-size: 11px;
+    line-height: 1.45;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+  }
+  #hmTrendChat .hm-driver-list{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  #hmTrendChat .hm-driver-list li{
+    position: relative;
+    margin: 0;
+    padding: 8px 0 8px 12px;
+    border-top: 1px solid rgba(209,128,87,0.24);
+    color: rgba(255,255,255,0.94);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  #hmTrendChat .hm-driver-list li:first-child{
+    border-top: 0;
+    padding-top: 0;
+  }
+  #hmTrendChat .hm-driver-list li::before{
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 14px;
+    width: 5px;
+    height: 5px;
+    border: 1px solid var(--hm-copper);
+    background: transparent;
+  }
+  #hmTrendChat .hm-driver-list li:first-child::before{ top: 6px; }
+  #hmTrendChat .hm-driver-empty{
+    margin: 0;
+    color: rgba(255,255,255,0.62);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 760px){
+    #hmTrendChat .hm-drivers-grid{
+      grid-template-columns: 1fr;
+    }
+  }
+
   /* Input bar */
   #hmTrendChat .hm-inputRow{
     display:flex;
@@ -647,6 +728,95 @@ libToggleBtn.textContent = "SHOW";
     }).join("");
   }
 
+  function extractDriversTopic(question){
+    const text = String(question || "").trim();
+    const patterns = [
+      /^(?:please\s+)?(?:generate|create|make)\s+(?:.*?\s+)?drivers?\s+(?:for|on|about)\s+(.+)$/i,
+      /^(?:please\s+)?(?:generate|create|make)\s+(?:.*?\s+)?drivers?\s*:\s*(.+)$/i,
+      /^(?:please\s+)?drivers?\s+(?:for|on|about)\s+(.+)$/i
+    ];
+
+    for (const pattern of patterns){
+      const match = text.match(pattern);
+      if (match && match[1]){
+        return match[1].replace(/\s*[.!?]\s*$/, "").trim();
+      }
+    }
+
+    return "";
+  }
+
+  function createLoadingMessage(message){
+    const loadingMsg = document.createElement("div");
+    loadingMsg.className = "hm-msg hm-ai";
+
+    const title = document.createElement("div");
+    title.className = "hm-msg-title";
+    title.textContent = "TREND BOILER";
+
+    const body = document.createElement("div");
+    body.className = "hm-msg-body";
+    body.innerHTML = `<div class="loader-radar"></div><p>${escapeHtml(message)}</p>`;
+
+    loadingMsg.appendChild(title);
+    loadingMsg.appendChild(body);
+    chatEl.appendChild(loadingMsg);
+    chatEl.scrollTop = chatEl.scrollHeight;
+
+    return loadingMsg;
+  }
+
+  function renderDriverColumn(type, column, fallbackLabel, fallbackDescription){
+    const label = column?.label || fallbackLabel;
+    const description = column?.description || fallbackDescription;
+    const items = Array.isArray(column?.items) ? column.items : [];
+    const list = items.length
+      ? `<ul class="hm-driver-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+      : `<p class="hm-driver-empty">No drivers returned.</p>`;
+
+    return `
+      <div class="hm-driver-col hm-driver-${type}">
+        <h3>${escapeHtml(label)}</h3>
+        <p class="hm-driver-desc">${escapeHtml(description)}</p>
+        ${list}
+      </div>
+    `;
+  }
+
+  function renderDriversHtml(data){
+    const topic = data?.topic || "selected topic";
+    const drivers = data?.drivers || {};
+
+    return `
+      <div class="hm-drivers">
+        <div class="hm-drivers-title">Drivers for: ${escapeHtml(topic)}</div>
+        <div class="hm-drivers-grid">
+          ${renderDriverColumn("primary", drivers.primary, "Primary Drivers", "Highly likely, big impact")}
+          ${renderDriverColumn("secondary", drivers.secondary, "Secondary Drivers", "Less likely, relatively big impact")}
+          ${renderDriverColumn("wildcard", drivers.wildcard, "Wildcard Drivers", "Unlikely, but if it happens it would be a big deal")}
+        </div>
+      </div>
+    `;
+  }
+
+  function driversToHistoryText(data){
+    const topic = data?.topic || "selected topic";
+    const drivers = data?.drivers || {};
+    const sections = [
+      ["Primary Drivers", drivers.primary?.items || []],
+      ["Secondary Drivers", drivers.secondary?.items || []],
+      ["Wildcard Drivers", drivers.wildcard?.items || []]
+    ];
+
+    return [
+      `Drivers for: ${topic}`,
+      ...sections.map(([label, items]) => {
+        const bullets = (Array.isArray(items) ? items : []).map(item => `- ${item}`).join("\n");
+        return `${label}\n${bullets || "- No drivers returned."}`;
+      })
+    ].join("\n\n");
+  }
+
   function addMsg(who, text){
     const wrap = document.createElement("div");
     wrap.className = "hm-msg " + (who === "me" ? "hm-me" : "hm-ai");
@@ -891,9 +1061,52 @@ libToggleBtn.textContent = "SHOW";
   }
 }
 
+  async function generateDrivers(prompt, topic){
+    const cleanTopic = String(topic || "").trim();
+    if (!cleanTopic) return addSys("ENTER A TOPIC FOR DRIVER GENERATION", true);
+
+    await ensureSession();
+
+    addMsg("me", prompt);
+    setStatus("GENERATING DRIVERS...");
+    const loadingMsg = createLoadingMessage("GENERATING DRIVERS...");
+
+    askBtn.disabled = true;
+    uploadBtn.disabled = true;
+
+    try{
+      const resp = await fetch(API_BASE + "/api/drivers", {
+        method:"POST",
+        headers: headersJson(),
+        body: JSON.stringify({ sector: currentSector, topic: cleanTopic, history })
+      });
+      const data = await resp.json().catch(()=>({}));
+      if (!resp.ok) throw new Error((data.error || "DRIVERS FAILED") + (data.details ? " - " + data.details : ""));
+
+      loadingMsg.querySelector(".hm-msg-body").innerHTML = renderDriversHtml(data);
+      history = [...history,
+        { role:"user", content: prompt },
+        { role:"assistant", content: driversToHistoryText(data) }
+      ].slice(-16);
+
+      setStatus("DONE");
+    } catch(e){
+      loadingMsg.querySelector(".hm-msg-body").innerHTML = escapeHtml("DRIVERS ERROR: " + (e.message || e));
+      setStatus("ERROR", true);
+    } finally {
+      askBtn.disabled = false;
+      uploadBtn.disabled = false;
+    }
+  }
+
   async function ask(question){
     const q = (question || "").trim();
     if (!q) return;
+
+    const driverTopic = extractDriversTopic(q);
+    if (driverTopic){
+      return generateDrivers(q, driverTopic);
+    }
 
     await ensureSession();
 

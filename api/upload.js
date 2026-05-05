@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const bb = busboy({ 
       headers: req.headers,
       limits: {
-        fileSize: 100 * 1024 * 1024 // 100MB
+        fileSize: 500 * 1024 * 1024 // 500MB
       }
     });
     let fileBuffer = null;

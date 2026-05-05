@@ -1,0 +1,129 @@
+/* Drivers Display Styles */
+
+.drivers-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  padding: 2rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin: 2rem 0;
+}
+
+.drivers-container h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #1a1a1a;
+  font-size: 1.5rem;
+}
+
+.drivers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.driver-column {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #ccc;
+  transition: box-shadow 0.3s ease;
+}
+
+.driver-column:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.driver-primary {
+  border-top-color: #10b981; /* Green - Primary */
+  background-color: #f0fdf4;
+}
+
+.driver-secondary {
+  border-top-color: #f59e0b; /* Amber - Secondary */
+  background-color: #fffbf0;
+}
+
+.driver-wildcard {
+  border-top-color: #ef4444; /* Red - Wildcard */
+  background-color: #fef2f2;
+}
+
+.driver-column h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #1a1a1a;
+}
+
+.driver-column .description {
+  margin: 0 0 1rem 0;
+  font-size: 0.85rem;
+  color: #666;
+  font-style: italic;
+  padding: 0.5rem;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-left: 2px solid rgba(0, 0, 0, 0.1);
+  padding-left: 0.75rem;
+}
+
+.driver-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.driver-list li {
+  padding: 0.75rem 0 0.75rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  line-height: 1.5;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.driver-list li:last-child {
+  border-bottom: none;
+}
+
+.driver-list li::before {
+  content: "→ ";
+  margin-right: 0.5rem;
+  font-weight: bold;
+  color: inherit;
+  opacity: 0.6;
+}
+
+.driver-primary li::before {
+  color: #10b981;
+}
+
+.driver-secondary li::before {
+  color: #f59e0b;
+}
+
+.driver-wildcard li::before {
+  color: #ef4444;
+}
+
+/* Mobile responsive */
+@media (max-width: 1024px) {
+  .drivers-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .drivers-container {
+    padding: 1rem;
+  }
+
+  .drivers-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .drivers-container h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+}

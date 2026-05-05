@@ -1,0 +1,215 @@
+import { listObjects } from "../lib/r2.js";
+import { openai } from "../lib/openaiClient.js";
+import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
+import { getVectorStoreIdForSector } from "../lib/vs.js";
+
+function json(res, status, payload) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(payload));
+}
+
+function parseDriversResponse(text) {
+  const parsedJson = parseDriversJson(text);
+  if (parsedJson) return parsedJson;
+
+  const sections = {
+    primary: [],
+    secondary: [],
+    wildcard: []
+  };
+
+  // Split by headers (case-insensitive)
+  const lines = text.split('\n');
+  let currentSection = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const heading = trimmed
+      .replace(/^#{1,6}\s*/, '')
+      .replace(/^\*\*/, '')
+      .replace(/\*\*$/, '')
+      .replace(/:$/, '')
+      .trim();
+    
+    if (/^primary\b/i.test(heading)) {
+      currentSection = 'primary';
+    } else if (/^secondary\b/i.test(heading)) {
+      currentSection = 'secondary';
+    } else if (/^wildcard\b/i.test(heading)) {
+      currentSection = 'wildcard';
+    } else if (trimmed && currentSection && !trimmed.startsWith('---') && !trimmed.startsWith('```') && trimmed.length > 3) {
+      // Add non-empty lines that aren't markdown symbols
+      const cleaned = trimmed
+        .replace(/^[-•*]\s*/, '') // Remove bullet points
+        .replace(/^[-*\u2022]\s*/, '') // Remove bullet points
+        .replace(/^\d+[.)]\s*/, '') // Remove numbering
+        .trim();
+      
+      if (cleaned && !/^(primary|secondary|wildcard)\b/i.test(cleaned)) {
+        sections[currentSection].push(cleaned);
+      }
+    }
+  }
+
+  return sections;
+}
+
+function parseDriversJson(text) {
+  const cleaned = String(text || "")
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/, "")
+    .replace(/\s*```$/, "");
+
+  let data = null;
+  try {
+    data = JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      data = JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+
+  const root = data?.drivers || data;
+  const parsed = {
+    primary: normaliseDriverItems(root?.primary),
+    secondary: normaliseDriverItems(root?.secondary),
+    wildcard: normaliseDriverItems(root?.wildcard)
+  };
+
+  return Object.values(parsed).some(items => items.length) ? parsed : null;
+}
+
+function normaliseDriverItems(value) {
+  const items = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.items)
+      ? value.items
+      : [];
+
+  return items
+    .map(item => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        return item.driver || item.title || item.text || item.name || "";
+      }
+      return "";
+    })
+    .map(item => String(item).trim())
+    .filter(Boolean);
+}
+
+export const config = { maxDuration: 60 };
+
+export default async function handler(req, res) {
+  setCors(req, res);
+  if (handleOptions(req, res)) return;
+  if (!requireDemoToken(req, res)) return;
+
+  try {
+    if (req.method !== "POST") {
+      return json(res, 405, { error: "Use POST." });
+    }
+
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
+    const sector = String(body.sector || "luxury").trim().toLowerCase();
+    const topic = String(body.topic || "").trim();
+    const history = Array.isArray(body.history) ? body.history : [];
+
+    if (!topic) {
+      return json(res, 400, { error: "Missing topic parameter. Use 'generate drivers for X'" });
+    }
+
+    const vsid = getVectorStoreIdForSector(sector);
+    if (!vsid) {
+      return json(res, 500, { error: `Missing vector store ID for sector: ${sector}` });
+    }
+
+    // Log for debugging
+    let docCount = 0;
+    try {
+      const prefixes = sector === "luxury"
+        ? ["trend-library/meta/luxury/", "trend-library/meta/"]
+        : [`trend-library/meta/${sector}/`];
+
+      for (const prefix of prefixes) {
+        const metas = await listObjects(prefix);
+        docCount += metas.length;
+      }
+    } catch (e) {
+      // best-effort logging; ignore failures
+    }
+
+    console.log(`DRIVERS sector=${sector} topic=${topic.slice(0,100)}`);
+
+    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+    const system = [
+      "You are a strategic foresight specialist generating drivers for trend analysis.",
+      `Using documents from the "${sector}" sector, generate three categories of drivers for: ${topic}`,
+      "",
+      "PRIMARY DRIVERS (Highly likely, big impact):",
+      "- List 3-5 drivers that are very likely to happen and would significantly impact the trend",
+      "",
+      "SECONDARY DRIVERS (Less likely, relatively big impact):",
+      "- List 3-5 drivers that are somewhat less likely but would still have considerable impact if they occur",
+      "",
+      "WILDCARD DRIVERS (Unlikely, but massive if happens):",
+      "- List 2-3 low-probability but high-impact events (e.g., regulatory shock, technology breakthrough, geopolitical event, pandemic-like disruption)",
+      "",
+      "Return STRICT JSON only with this exact shape:",
+      `{"primary":["..."],"secondary":["..."],"wildcard":["..."]}`,
+      "Do not include markdown, commentary, or source annotations outside the JSON.",
+      "Use British English.",
+      "Be specific and actionable.",
+      "Reference the uploaded documents when possible."
+    ].join("\n");
+
+    const input = [
+      { role: "system", content: system },
+      ...history.slice(-8),
+      { role: "user", content: `Generate drivers for: ${topic}` }
+    ];
+
+    const resp = await openai.responses.create({
+      model,
+      input,
+      tools: [{ type: "file_search", vector_store_ids: [vsid] }],
+      max_output_tokens: 2000
+    });
+
+    const responseText = resp.output_text || "";
+    const parsed = parseDriversResponse(responseText);
+
+    console.log(`DRIVERS RESULT sector=${sector} primary=${parsed.primary.length} secondary=${parsed.secondary.length} wildcard=${parsed.wildcard.length}`);
+
+    return json(res, 200, {
+      topic,
+      drivers: {
+        primary: {
+          label: "Primary Drivers",
+          description: "Highly likely, big impact",
+          items: parsed.primary
+        },
+        secondary: {
+          label: "Secondary Drivers",
+          description: "Less likely, relatively big impact",
+          items: parsed.secondary
+        },
+        wildcard: {
+          label: "Wildcard Drivers",
+          description: "Unlikely, but if it happens it would be a big deal",
+          items: parsed.wildcard
+        }
+      },
+      raw_response: responseText
+    });
+  } catch (err) {
+    return json(res, 500, { error: "DRIVERS FAILED", details: String(err?.message || err) });
+  }
+}

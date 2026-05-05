@@ -65,27 +65,17 @@ function driverSystemInstructions() {
   return [
     "",
     "DRIVERS MODE:",
-    "The user is asking for future/trend drivers. The frontend is currently rendering normal markdown, so you MUST make the answer itself a three-column markdown table.",
-    "Use this exact structure with no introduction before the title:",
-    "**Drivers for: [topic]**",
-    "",
-    "| **Primary Drivers**<br>Highly likely, big impact | **Secondary Drivers**<br>Less likely, relatively big impact | **Wildcard Drivers**<br>Unlikely, but if it happens it would be a big deal |",
-    "|---|---|---|",
-    "| Driver 1 | Driver 1 | Driver 1 |",
-    "| Driver 2 | Driver 2 | Driver 2 |",
-    "| Driver 3 | Driver 3 | Driver 3 |",
-    "",
-    "Rules:",
-    "- Always use exactly three columns: Primary Drivers, Secondary Drivers, Wildcard Drivers.",
-    "- Do not output separate section headings or bullet lists outside the table.",
-    "- Do not use JSON, source annotations, markdown code fences, or numbered lists.",
-    "- Put one concise driver per table cell.",
-    "- Provide 3-5 primary drivers, 3-5 secondary drivers, and 2-3 wildcard drivers. Leave a cell blank only if one column has fewer drivers than another.",
-    "- Primary drivers are highly likely and high impact.",
-    "- Secondary drivers are less likely than primary drivers but still relatively high impact.",
-    "- Wildcard drivers are low-probability, high-impact events such as regulatory shocks, technology breakthroughs, geopolitical events, supply-chain disruption, pandemic-like events or sudden cultural shifts.",
-    "- Ground the drivers in the uploaded documents and saved web sources when possible; if evidence is thin, make plausible assumptions without saying NOT IN DOCUMENTS for every cell.",
-    "- Use British English."
+    "The user is asking for future/trend drivers.",
+    "Return STRICT JSON only with this exact shape:",
+    `{"topic":"...","primary":["..."],"secondary":["..."],"wildcard":["..."]}`,
+    "Do not include markdown, commentary, source annotations, or code fences outside the JSON.",
+    "Primary drivers: 3-5 items that are highly likely and high impact.",
+    "Secondary drivers: 3-5 items that are less likely than primary drivers but still relatively high impact.",
+    "Wildcard drivers: 2-3 low-probability, high-impact events such as regulatory shocks, technology breakthroughs, geopolitical events, supply-chain disruption, pandemic-like events or sudden cultural shifts.",
+    "Use a short clean topic label, removing phrases like 'generate drivers for'.",
+    "Be specific and concise.",
+    "Ground the drivers in the uploaded documents and saved web sources when possible; if evidence is thin, make plausible assumptions without saying NOT IN DOCUMENTS for every item.",
+    "Use British English."
   ].join("\n");
 }
 
@@ -103,8 +93,110 @@ function augmentDriversPrompt(question) {
     "Generate drivers for this request:",
     question,
     "",
-    "Follow Drivers Mode exactly. The final answer must be a three-column markdown table with Primary Drivers, Secondary Drivers, and Wildcard Drivers as the only columns."
+    "Return only the strict JSON requested in Drivers Mode."
   ].join("\n");
+}
+
+function cleanDriverTopic(question, fallback = "Future Trends") {
+  const raw = String(fallback || question || "Future Trends").trim();
+  const cleaned = raw
+    .replace(/^generate\s+(future\s+)?drivers\s+(for|about|on)\s+/i, "")
+    .replace(/^generate\s+(future\s+)?drivers\s*:?\s*/i, "")
+    .replace(/^(future\s+)?drivers\s+(for|about|on)\s+/i, "")
+    .trim();
+  return cleaned || "Future Trends";
+}
+
+function parseDriversJson(text) {
+  const cleaned = String(text || "")
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/, "")
+    .replace(/\s*```$/, "");
+
+  let data = null;
+  try {
+    data = JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      data = JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+
+  const root = data?.drivers || data;
+  const parsed = {
+    topic: root?.topic || data?.topic || "",
+    primary: normaliseDriverItems(root?.primary),
+    secondary: normaliseDriverItems(root?.secondary),
+    wildcard: normaliseDriverItems(root?.wildcard)
+  };
+
+  return Object.values({ primary: parsed.primary, secondary: parsed.secondary, wildcard: parsed.wildcard }).some(items => items.length)
+    ? parsed
+    : null;
+}
+
+function normaliseDriverItems(value) {
+  const items = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.items)
+      ? value.items
+      : [];
+
+  return items
+    .map(item => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        return item.driver || item.title || item.text || item.name || "";
+      }
+      return "";
+    })
+    .map(item => String(item).trim().replace(/^[-*•]\s*/, ""))
+    .filter(Boolean);
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, m => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[m]));
+}
+
+function renderDriverColumn(title, description, items) {
+  const list = items.length
+    ? `<ul class="hm-driver-list">${items.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+    : `<p class="hm-driver-empty">No drivers generated.</p>`;
+
+  return [
+    `<div class="hm-driver-col">`,
+    `<h3>${escapeHtml(title)}</h3>`,
+    `<p class="hm-driver-desc">${escapeHtml(description)}</p>`,
+    list,
+    `</div>`
+  ].join("");
+}
+
+function renderDriversHtml(question, responseText) {
+  const parsed = parseDriversJson(responseText) || { primary: [], secondary: [], wildcard: [], topic: "" };
+  const topic = cleanDriverTopic(question, parsed.topic || question);
+
+  return [
+    `<div class="hm-drivers">`,
+    `<div class="hm-drivers-title">DRIVERS FOR: ${escapeHtml(topic.toUpperCase())}</div>`,
+    `<div class="hm-drivers-grid">`,
+    renderDriverColumn("Primary Drivers", "Highly likely, big impact", parsed.primary),
+    renderDriverColumn("Secondary Drivers", "Less likely, relatively big impact", parsed.secondary),
+    renderDriverColumn("Wildcard Drivers", "Unlikely, but if it happens it would be a big deal", parsed.wildcard),
+    `</div>`,
+    `</div>`
+  ].join("");
 }
 
 export const config = { maxDuration: 60 };
@@ -191,9 +283,13 @@ if (!requireDemoToken(req, res)) return;
       max_output_tokens: route.outputFormat === "scenario" ? 2200 : route.outputFormat === "drivers" ? 1800 : 1500
     });
 
+    const answer = route.outputFormat === "drivers"
+      ? renderDriversHtml(question, resp.output_text || "")
+      : resp.output_text || "";
+
     console.log(`ASK RESULT sector=${sector} format=${route.outputFormat} vsid=${vsid} answerTokens=${(resp?.output_tokens || 0)}`);
 
-    return json(res, 200, { answer: resp.output_text || "", outputFormat: route.outputFormat });
+    return json(res, 200, { answer, outputFormat: route.outputFormat });
   } catch (err) {
     return json(res, 500, { error: "ASK FAILED", details: String(err?.message || err) });
   }

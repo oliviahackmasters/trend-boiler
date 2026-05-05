@@ -11,9 +11,17 @@ function json(res, status, payload) {
 }
 
 function routeUserQuery(question) {
+  if (wantsDrivers(question)) {
+    return { outputFormat: "drivers" };
+  }
+
   return {
     outputFormat: wantsScenarioMatrix(question) ? "scenario" : "default"
   };
+}
+
+function wantsDrivers(question) {
+  return /\b(generate|create|make|build|give|identify|list|map|show)?\s*(future\s+)?drivers?\b|\bdrivers?\s+for\b|\b(primary|secondary|wildcard)\s+drivers?\b/i.test(String(question || ""));
 }
 
 function wantsScenarioMatrix(question) {
@@ -53,12 +61,48 @@ function scenarioSystemInstructions() {
   ].join("\n");
 }
 
+function driverSystemInstructions() {
+  return [
+    "",
+    "DRIVERS MODE:",
+    "The user is asking for future/trend drivers. Produce drivers in exactly three categories so the frontend can render the required 3-column layout.",
+    "Use this exact structure and headings, with no introduction before the title:",
+    "**Drivers for: [topic]**",
+    "**Primary Drivers**",
+    "Highly likely, big impact",
+    "- 3-5 drivers that are highly likely to happen and would have a big impact.",
+    "**Secondary Drivers**",
+    "Less likely, relatively big impact",
+    "- 3-5 drivers that are less likely than primary drivers but would still have a relatively big impact.",
+    "**Wildcard Drivers**",
+    "Unlikely, but if it happens it would be a big deal",
+    "- 2-3 low-probability, high-impact drivers, such as regulatory shocks, technology breakthroughs, geopolitical events, supply-chain disruption, pandemic-like events or sudden cultural shifts.",
+    "",
+    "Rules:",
+    "- Keep the three section names exactly: Primary Drivers, Secondary Drivers, Wildcard Drivers.",
+    "- Put only bullet items under each section after its short descriptor line.",
+    "- Do not use tables, JSON, source annotations, markdown code fences, or numbered lists.",
+    "- Each bullet should be one concise sentence and specific to the user's topic.",
+    "- Ground the drivers in the uploaded documents and saved web sources when possible; if evidence is thin, make plausible assumptions without saying NOT IN DOCUMENTS for every bullet.",
+    "- Use British English."
+  ].join("\n");
+}
+
 function augmentScenarioPrompt(question) {
   return [
     "Build a scenario matrix for this request:",
     question,
     "",
     "Follow the scenario matrix structure from the system instructions exactly."
+  ].join("\n");
+}
+
+function augmentDriversPrompt(question) {
+  return [
+    "Generate drivers for this request:",
+    question,
+    "",
+    "Follow the Drivers Mode structure exactly so the answer can be rendered as three columns: Primary Drivers, Secondary Drivers, and Wildcard Drivers."
   ].join("\n");
 }
 
@@ -122,10 +166,16 @@ if (!requireDemoToken(req, res)) return;
       systemParts.push(scenarioSystemInstructions());
     }
 
+    if (route.outputFormat === "drivers") {
+      systemParts.push(driverSystemInstructions());
+    }
+
     const system = systemParts.join("\n");
     const userPrompt = route.outputFormat === "scenario"
       ? augmentScenarioPrompt(question)
-      : question;
+      : route.outputFormat === "drivers"
+        ? augmentDriversPrompt(question)
+        : question;
 
     const input = [
       { role: "system", content: system },
@@ -137,7 +187,7 @@ if (!requireDemoToken(req, res)) return;
       model,
       input,
       tools: [{ type: "file_search", vector_store_ids: [vsid] }],
-      max_output_tokens: route.outputFormat === "scenario" ? 2200 : 1500
+      max_output_tokens: route.outputFormat === "scenario" ? 2200 : route.outputFormat === "drivers" ? 1800 : 1500
     });
 
     console.log(`ASK RESULT sector=${sector} format=${route.outputFormat} vsid=${vsid} answerTokens=${(resp?.output_tokens || 0)}`);

@@ -30,11 +30,24 @@ export default async function handler(req, res) {
 
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-    // IMPORTANT: we force strict JSON so the frontend can render without hacks
+    // IMPORTANT: keep strict JSON so the frontend can render the map directly.
+    // The values remain arrays of strings for backwards compatibility with the SVG renderer.
     const prompt = `
-You are a trends research assistant. Use ONLY the documents and saved web sources in the vector store.
+You are a senior trends strategist. Use ONLY the reports, documents, and saved web sources in the vector store.
 
 Task: Build a "Future Map" for the theme: "${theme}".
+
+What the Future Map should do:
+- Summarise the most important PRIMARY DRIVERS found across the reports.
+- Prioritise UNIVERSAL THEMES: drivers that appear across multiple reports/sources (e.g. several KPMG, Deloitte, EY, McKinsey-style reports all pointing to the same force).
+- Include UNIQUE THEMES only when they are especially sharp or strategically useful, and label them as "Unique:".
+- Present drivers as TENSIONS, not generic trends.
+- A tension should show two opposing forces, trade-offs, or directions of travel, using forms like:
+  - "Personalisation + convenience vs data anxiety"
+  - "Eco-friendly intent vs convenience expectations"
+  - "More automation vs less human trust"
+  - "Premium experience + speed vs rising cost pressure"
+  - "Centralised control vs local adaptation"
 
 Return STRICT JSON only (no markdown, no commentary) with this exact shape:
 
@@ -52,16 +65,22 @@ Return STRICT JSON only (no markdown, no commentary) with this exact shape:
 }
 
 Rules:
-- 3–6 bullets per lens.
-- Each bullet should be short (max ~120 chars), concrete, and insight-like (not generic).
-- If evidence is weak for a lens, write a bullet starting with "NOT ENOUGH EVIDENCE:".
+- 3-5 bullets per lens.
+- Each bullet must be a short tension, max ~120 characters.
+- Each bullet should read as an either/or, more/less, +/- or "X vs Y" tension.
+- Avoid single-sided summaries like "AI will improve efficiency"; rewrite as a tension like "More AI efficiency vs less human trust".
+- Start broadly supported cross-report themes with "Universal:" where it fits naturally.
+- Use "Unique:" only for a distinctive driver that appears to come from one report/source and is still strategically useful.
+- Mainly include Universal themes; Unique themes should be rare.
+- If evidence is weak for a lens, write one bullet starting with "NOT ENOUGH EVIDENCE:" and make the remaining bullets cautious tensions.
+- Use British English.
 `.trim();
 
     const resp = await openai.responses.create({
       model,
       input: [{ role: "user", content: prompt }],
       tools: [{ type: "file_search", vector_store_ids: [vsid] }],
-      max_output_tokens: 900
+      max_output_tokens: 1200
     });
 
     const text = (resp.output_text || "").trim();

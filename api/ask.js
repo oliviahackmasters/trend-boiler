@@ -65,25 +65,26 @@ function driverSystemInstructions() {
   return [
     "",
     "DRIVERS MODE:",
-    "The user is asking for future/trend drivers. Produce drivers in exactly three categories so the frontend can render the required 3-column layout.",
-    "Use this exact structure and headings, with no introduction before the title:",
+    "The user is asking for future/trend drivers. The frontend is currently rendering normal markdown, so you MUST make the answer itself a three-column markdown table.",
+    "Use this exact structure with no introduction before the title:",
     "**Drivers for: [topic]**",
-    "**Primary Drivers**",
-    "Highly likely, big impact",
-    "- 3-5 drivers that are highly likely to happen and would have a big impact.",
-    "**Secondary Drivers**",
-    "Less likely, relatively big impact",
-    "- 3-5 drivers that are less likely than primary drivers but would still have a relatively big impact.",
-    "**Wildcard Drivers**",
-    "Unlikely, but if it happens it would be a big deal",
-    "- 2-3 low-probability, high-impact drivers, such as regulatory shocks, technology breakthroughs, geopolitical events, supply-chain disruption, pandemic-like events or sudden cultural shifts.",
+    "",
+    "| **Primary Drivers**<br>Highly likely, big impact | **Secondary Drivers**<br>Less likely, relatively big impact | **Wildcard Drivers**<br>Unlikely, but if it happens it would be a big deal |",
+    "|---|---|---|",
+    "| Driver 1 | Driver 1 | Driver 1 |",
+    "| Driver 2 | Driver 2 | Driver 2 |",
+    "| Driver 3 | Driver 3 | Driver 3 |",
     "",
     "Rules:",
-    "- Keep the three section names exactly: Primary Drivers, Secondary Drivers, Wildcard Drivers.",
-    "- Put only bullet items under each section after its short descriptor line.",
-    "- Do not use tables, JSON, source annotations, markdown code fences, or numbered lists.",
-    "- Each bullet should be one concise sentence and specific to the user's topic.",
-    "- Ground the drivers in the uploaded documents and saved web sources when possible; if evidence is thin, make plausible assumptions without saying NOT IN DOCUMENTS for every bullet.",
+    "- Always use exactly three columns: Primary Drivers, Secondary Drivers, Wildcard Drivers.",
+    "- Do not output separate section headings or bullet lists outside the table.",
+    "- Do not use JSON, source annotations, markdown code fences, or numbered lists.",
+    "- Put one concise driver per table cell.",
+    "- Provide 3-5 primary drivers, 3-5 secondary drivers, and 2-3 wildcard drivers. Leave a cell blank only if one column has fewer drivers than another.",
+    "- Primary drivers are highly likely and high impact.",
+    "- Secondary drivers are less likely than primary drivers but still relatively high impact.",
+    "- Wildcard drivers are low-probability, high-impact events such as regulatory shocks, technology breakthroughs, geopolitical events, supply-chain disruption, pandemic-like events or sudden cultural shifts.",
+    "- Ground the drivers in the uploaded documents and saved web sources when possible; if evidence is thin, make plausible assumptions without saying NOT IN DOCUMENTS for every cell.",
     "- Use British English."
   ].join("\n");
 }
@@ -102,7 +103,7 @@ function augmentDriversPrompt(question) {
     "Generate drivers for this request:",
     question,
     "",
-    "Follow the Drivers Mode structure exactly so the answer can be rendered as three columns: Primary Drivers, Secondary Drivers, and Wildcard Drivers."
+    "Follow Drivers Mode exactly. The final answer must be a three-column markdown table with Primary Drivers, Secondary Drivers, and Wildcard Drivers as the only columns."
   ].join("\n");
 }
 

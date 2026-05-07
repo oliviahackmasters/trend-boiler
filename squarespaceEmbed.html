@@ -687,13 +687,16 @@
   const sectorTabsEl = mount.querySelector("#hmSectorTabs");
   const downloadChatPngBtn = mount.querySelector("#hmDownloadChatPng");
 
-  const SECTORS = [
-    { id: "luxury", label: "Luxury" },
-    { id: "banking", label: "Banking" },
-    { id: "retail", label: "Retail" },
-    { id: "government", label: "Government" },
-    { id: "osint", label: "OSINT" }
-  ];
+const SECTORS = [
+  { id: "luxury", label: "Luxury" },
+  { id: "banking", label: "Banking" },
+  { id: "retail", label: "Retail" },
+  { id: "government", label: "Government" },
+  { id: "osint", label: "OSINT" },
+  { id: "trade", label: "Trade" },
+  { id: "logistics", label: "Logistics" },
+  { id: "hospitality", label: "Hospitality" }
+];
 
   const LS_SECTOR_KEY = "hm_trendchat_sector";
   let currentSector = localStorage.getItem(LS_SECTOR_KEY) || "luxury";

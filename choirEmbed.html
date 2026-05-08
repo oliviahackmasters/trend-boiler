@@ -17,15 +17,8 @@
     letter-spacing:.2px;
   }
   #hmChoir .choir-title{ display:flex; align-items:center; gap:12px; margin:0 0 10px; }
-  #hmChoir .choir-logo{
-    width:54px; height:54px; border:1px solid var(--hm-copper); border-radius:50%;
-    display:grid; place-items:center; color:var(--hm-copper); font-weight:700; letter-spacing:1.6px;
-    position:relative; overflow:hidden;
-  }
-  #hmChoir .choir-logo:before, #hmChoir .choir-logo:after{
-    content:""; position:absolute; inset:11px; border:1px solid rgba(209,128,87,.55); border-radius:50%;
-  }
-  #hmChoir .choir-logo:after{ inset:21px; background:var(--hm-copper); opacity:.9; }
+
+
   #hmChoir .choir-kicker{ color:var(--hm-copper); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; margin:0 0 3px; }
   #hmChoir h2{ margin:0; font-size:24px; line-height:1.1; text-transform:uppercase; letter-spacing:1.2px; }
   #hmChoir .choir-sub{ margin:0 0 14px; color:rgba(255,255,255,.82); font-size:12px; line-height:1.55; }
@@ -62,9 +55,7 @@
   mount.innerHTML = `
     <div class="choir-wrap">
       <div class="choir-title">
-        <div class="choir-logo">CH</div>
         <div>
-          <p class="choir-kicker">Horizon Scan</p>
           <h2>Choir</h2>
         </div>
       </div>

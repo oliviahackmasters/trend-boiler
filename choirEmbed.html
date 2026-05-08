@@ -1,0 +1,222 @@
+<!-- Choir Transcript Analysis Embed -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<div id="hmChoir"></div>
+
+<style>
+  :root{ --hm-black:#000000; --hm-white:#FFFFFF; --hm-copper:#D18057; }
+  #hmChoir *{ box-sizing:border-box; }
+  #hmChoir .choir-wrap{
+    font-family:"Montserrat",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--hm-black);
+    color:var(--hm-white);
+    border:1px solid var(--hm-copper);
+    padding:18px;
+    letter-spacing:.2px;
+  }
+  #hmChoir .choir-title{ display:flex; align-items:center; gap:12px; margin:0 0 10px; }
+  #hmChoir .choir-logo{
+    width:54px; height:54px; border:1px solid var(--hm-copper); border-radius:50%;
+    display:grid; place-items:center; color:var(--hm-copper); font-weight:700; letter-spacing:1.6px;
+    position:relative; overflow:hidden;
+  }
+  #hmChoir .choir-logo:before, #hmChoir .choir-logo:after{
+    content:""; position:absolute; inset:11px; border:1px solid rgba(209,128,87,.55); border-radius:50%;
+  }
+  #hmChoir .choir-logo:after{ inset:21px; background:var(--hm-copper); opacity:.9; }
+  #hmChoir .choir-kicker{ color:var(--hm-copper); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; margin:0 0 3px; }
+  #hmChoir h2{ margin:0; font-size:24px; line-height:1.1; text-transform:uppercase; letter-spacing:1.2px; }
+  #hmChoir .choir-sub{ margin:0 0 14px; color:rgba(255,255,255,.82); font-size:12px; line-height:1.55; }
+  #hmChoir .choir-note{ border:1px solid rgba(209,128,87,.45); padding:10px; margin:10px 0 14px; color:rgba(255,255,255,.78); font-size:11px; line-height:1.5; }
+  #hmChoir .choir-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+  #hmChoir .choir-file{ flex:1 1 260px; min-width:220px; border:1px solid var(--hm-copper); padding:10px 12px; color:rgba(255,255,255,.85); background:transparent; font-size:12px; }
+  #hmChoir input[type="file"]::file-selector-button{ border:1px solid var(--hm-copper); background:transparent; color:var(--hm-white); padding:8px 10px; text-transform:uppercase; letter-spacing:1px; font-weight:600; cursor:pointer; margin-right:10px; }
+  #hmChoir input[type="file"]::file-selector-button:hover, #hmChoir .choir-btn:hover{ background:var(--hm-copper); color:var(--hm-black); }
+  #hmChoir .choir-btn{ appearance:none; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:10px 12px; cursor:pointer; text-transform:uppercase; letter-spacing:1.1px; font-weight:600; font-size:12px; height:44px; }
+  #hmChoir .choir-btn:disabled{ opacity:.55; cursor:not-allowed; }
+  #hmChoir .choir-status{ margin-left:auto; font-size:12px; text-transform:uppercase; letter-spacing:.9px; color:rgba(255,255,255,.85); }
+  #hmChoir .choir-status.is-error{ color:var(--hm-copper); }
+  #hmChoir .choir-divider{ height:1px; background:rgba(209,128,87,.45); margin:14px 0; }
+  #hmChoir .choir-results{ border:1px solid var(--hm-copper); background:rgba(255,255,255,.02); padding:12px; min-height:160px; max-height:720px; overflow:auto; font-size:13px; line-height:1.6; }
+  #hmChoir .choir-results p{ margin:0 0 10px; }
+  #hmChoir .choir-results strong{ color:var(--hm-copper); text-transform:uppercase; letter-spacing:.9px; }
+  #hmChoir .choir-results ul{ margin:8px 0 12px 18px; padding:0; }
+  #hmChoir .choir-results li{ margin:5px 0; }
+  #hmChoir .choir-table-wrap{ width:100%; overflow-x:auto; margin:10px 0 12px; }
+  #hmChoir table{ width:100%; min-width:620px; border-collapse:collapse; border:1px solid rgba(209,128,87,.55); color:rgba(255,255,255,.92); font-size:12px; line-height:1.45; }
+  #hmChoir th,#hmChoir td{ border:1px solid rgba(209,128,87,.42); padding:9px 10px; vertical-align:top; text-align:left; }
+  #hmChoir th{ color:var(--hm-copper); background:rgba(209,128,87,.1); text-transform:uppercase; letter-spacing:.8px; }
+  #hmChoir .choir-textarea{ width:100%; min-height:92px; resize:vertical; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:12px; outline:none; font-size:13px; line-height:1.45; }
+  #hmChoir .choir-textarea::placeholder{ color:rgba(255,255,255,.62); }
+</style>
+
+<script>
+(() => {
+  const API_BASE = "https://trend-report-platform.vercel.app";
+  const DEMO_TOKEN = "";
+  const SECTOR = "choir";
+
+  const mount = document.getElementById("hmChoir");
+  mount.innerHTML = `
+    <div class="choir-wrap">
+      <div class="choir-title">
+        <div class="choir-logo">CH</div>
+        <div>
+          <p class="choir-kicker">Horizon Scan</p>
+          <h2>Choir</h2>
+        </div>
+      </div>
+      <p class="choir-sub">Upload interview, meeting or hack transcript PDFs and generate a Known / Unknown x Agreed / Contested theme matrix.</p>
+      <div class="choir-note"><strong>Confidentiality note:</strong> Choir uses a separate vector store via <code>VECTOR_STORE_ID_CHOIR</code>. Do not use for sensitive transcripts until storage retention, access and deletion policies are approved.</div>
+      <div class="choir-row">
+        <input class="choir-file" type="file" id="choirFiles" accept="application/pdf" multiple />
+        <button class="choir-btn" id="choirUpload">Upload transcripts</button>
+        <button class="choir-btn" id="choirAnalyse">Analyse</button>
+        <div class="choir-status" id="choirStatus">Ready</div>
+      </div>
+      <textarea class="choir-textarea" id="choirContext" placeholder="Optional: add project context, research question, audience, or decision this should inform..."></textarea>
+      <div class="choir-divider"></div>
+      <div class="choir-results" id="choirResults">Upload transcript PDFs, then select Analyse.</div>
+    </div>
+  `;
+
+  const statusEl = mount.querySelector("#choirStatus");
+  const filesEl = mount.querySelector("#choirFiles");
+  const uploadBtn = mount.querySelector("#choirUpload");
+  const analyseBtn = mount.querySelector("#choirAnalyse");
+  const contextEl = mount.querySelector("#choirContext");
+  const resultsEl = mount.querySelector("#choirResults");
+
+  let uploaded = [];
+  let sessionToken = localStorage.getItem("hm_choir_sessionToken") || crypto.randomUUID();
+  localStorage.setItem("hm_choir_sessionToken", sessionToken);
+
+  function setStatus(text, isError=false){
+    statusEl.textContent = text || "";
+    statusEl.classList.toggle("is-error", !!isError);
+  }
+
+  function headersJson(extra={}){
+    const h = { "Content-Type":"application/json", ...extra };
+    if (DEMO_TOKEN) h.Authorization = "Bearer " + DEMO_TOKEN;
+    if (sessionToken) h["x-session-token"] = sessionToken;
+    return h;
+  }
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+  }
+
+  function formatMarkdown(text){
+    let html = escapeHtml(text)
+      .replace(/^###\s+(.+)$/gm, "<p><strong>$1</strong></p>")
+      .replace(/^##\s+(.+)$/gm, "<p><strong>$1</strong></p>")
+      .replace(/^#\s+(.+)$/gm, "<p><strong>$1</strong></p>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+    const lines = html.split("\n");
+    const out = [];
+    let inList = false;
+    for (const line of lines) {
+      if (/^\s*-\s+/.test(line)) {
+        if (!inList) { out.push("<ul>"); inList = true; }
+        out.push("<li>" + line.replace(/^\s*-\s+/, "") + "</li>");
+      } else {
+        if (inList) { out.push("</ul>"); inList = false; }
+        if (line.trim()) out.push("<p>" + line + "</p>");
+      }
+    }
+    if (inList) out.push("</ul>");
+    html = out.join("");
+
+    html = html.replace(/<p>\|([\s\S]*?)\|<\/p>(?:<p>\|[-:\s|]+\|<\/p>)((?:<p>\|[\s\S]*?\|<\/p>)+)/g, (m, header, rows) => {
+      const ths = header.split("|").map(c => c.trim()).filter(Boolean).map(c => `<th>${c}</th>`).join("");
+      const trs = rows.match(/<p>\|[\s\S]*?\|<\/p>/g).map(r => {
+        const cells = r.replace(/^<p>\||\|<\/p>$/g, "").split("|").map(c => `<td>${c.trim()}</td>`).join("");
+        return `<tr>${cells}</tr>`;
+      }).join("");
+      return `<div class="choir-table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+    });
+    return html;
+  }
+
+  async function uploadOne(file){
+    const fd = new FormData();
+    fd.append("file", file);
+    const uploadResp = await fetch(`${API_BASE}/api/upload`, {
+      method:"POST",
+      headers: DEMO_TOKEN ? { Authorization:"Bearer " + DEMO_TOKEN, "x-session-token":sessionToken } : { "x-session-token":sessionToken },
+      body:fd
+    });
+    const uploadData = await uploadResp.json().catch(() => ({}));
+    if (!uploadResp.ok) throw new Error(uploadData.details || uploadData.error || `Upload failed for ${file.name}`);
+
+    const ingestResp = await fetch(`${API_BASE}/api/ingest`, {
+      method:"POST",
+      headers:headersJson(),
+      body:JSON.stringify({ sector:SECTOR, blobUrl:uploadData.blobUrl || uploadData.url || uploadData.publicUrl, filename:file.name, size:file.size, tags:{ company:"Choir", topics:["Transcript", "Interview"] } })
+    });
+    const ingestData = await ingestResp.json().catch(() => ({}));
+    if (!ingestResp.ok || ingestData.error) throw new Error(ingestData.details || ingestData.error || `Ingest failed for ${file.name}`);
+    return { name:file.name, duplicate:!!ingestData.duplicate };
+  }
+
+  async function uploadFiles(){
+    const files = Array.from(filesEl.files || []);
+    if (!files.length) { setStatus("Choose PDFs", true); return; }
+    uploadBtn.disabled = true; analyseBtn.disabled = true;
+    try {
+      uploaded = [];
+      for (let i = 0; i < files.length; i++) {
+        setStatus(`Uploading ${i + 1}/${files.length}`);
+        uploaded.push(await uploadOne(files[i]));
+      }
+      resultsEl.innerHTML = `<p><strong>Uploaded</strong></p><ul>${uploaded.map(f => `<li>${escapeHtml(f.name)}${f.duplicate ? " — already in Choir" : ""}</li>`).join("")}</ul>`;
+      setStatus("Uploaded");
+    } catch (err) {
+      setStatus("Upload failed", true);
+      resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+    } finally {
+      uploadBtn.disabled = false; analyseBtn.disabled = false;
+    }
+  }
+
+  async function analyse(){
+    analyseBtn.disabled = true; uploadBtn.disabled = true;
+    setStatus("Analysing");
+    resultsEl.innerHTML = "<p><strong>Analysing transcripts...</strong></p>";
+    try {
+      const context = contextEl.value.trim();
+      const question = [
+        "CHOIR ANALYSIS REQUEST",
+        "Analyse the uploaded interviews, meetings, hacks and transcripts.",
+        context ? `Project context: ${context}` : "",
+        "Output a 2x2 matrix in bullet points.",
+        "X-axis: Known <-> Unknown.",
+        "Y-axis: Agreed <-> Contested.",
+        "Finish with a simple summary of universal themes from the bottom half and unique themes from the top half."
+      ].filter(Boolean).join("\n");
+
+      const resp = await fetch(`${API_BASE}/api/ask`, {
+        method:"POST",
+        headers:headersJson(),
+        body:JSON.stringify({ sector:SECTOR, outputFormat:"choir", question, history:[] })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || data.error) throw new Error(data.details || data.error || "Analysis failed");
+      resultsEl.innerHTML = formatMarkdown(data.answer || "No answer returned.");
+      setStatus("Done");
+    } catch (err) {
+      setStatus("Analysis failed", true);
+      resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+    } finally {
+      analyseBtn.disabled = false; uploadBtn.disabled = false;
+    }
+  }
+
+  uploadBtn.addEventListener("click", uploadFiles);
+  analyseBtn.addEventListener("click", analyse);
+})();
+</script>

@@ -113,7 +113,7 @@ function choirSystemInstructions() {
     "- X-axis: Known <-> Unknown",
     "- Y-axis: Agreed <-> Contested",
     "**2x2 matrix**",
-    "| | Known | Unknown |",
+    "| - | Known | Unknown |",
     "|---|---|---|",
     "| Agreed | - 3-4 concise bullets on what participants broadly agree is already visible, understood, or happening.<br>- Each bullet should be specific. | - 3-4 concise bullets on shared uncertainties, questions, or emerging unknowns.<br>- Each bullet should be specific. |",
     "| Contested | - 3-4 concise bullets on known issues where participants disagree, frame differently, or prioritise differently.<br>- Each bullet should be specific. | - 3-4 concise bullets on unresolved, speculative, or disputed future possibilities.<br>- Each bullet should be specific. |",

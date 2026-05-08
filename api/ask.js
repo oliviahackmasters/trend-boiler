@@ -88,12 +88,56 @@ function driverSystemInstructions() {
   ].join("\n");
 }
 
+function choirSystemInstructions() {
+  return [
+    "",
+    "CHOIR MODE:",
+    "Analyse uploaded interview, meeting, workshop, hack and transcript documents.",
+    "Use this exact framework:",
+    "- X-axis: Known <-> Unknown",
+    "- Y-axis: Agreed <-> Contested",
+    "",
+    "Output sections:",
+    "**Choir Matrix**",
+    "**Evidence signals**",
+    "- 3-5 short signals from the transcripts. If evidence is thin, say NOT IN TRANSCRIPTS.",
+    "**Axes**",
+    "- X-axis: Known <-> Unknown",
+    "- Y-axis: Agreed <-> Contested",
+    "**2x2 matrix**",
+    "| | Known | Unknown |",
+    "|---|---|---|",
+    "| Agreed | - ... | - ... |",
+    "| Contested | - ... | - ... |",
+    "**Universal themes**",
+    "- Simple summary of themes from the bottom half of the matrix.",
+    "**Unique themes**",
+    "- Simple summary of themes from the top half of the matrix.",
+    "",
+    "Rules:",
+    "- Use concise bullet points.",
+    "- Ground findings in transcript evidence.",
+    "- Do not invent participant quotes.",
+    "- If something is not supported by the transcripts, say so.",
+    "- Use British English."
+  ].join("\n");
+}
+
 function augmentScenarioPrompt(question) {
   return [
     "Build a scenario matrix for this request:",
     question,
     "",
     "Follow the scenario matrix structure from the system instructions exactly."
+  ].join("\n");
+}
+
+function augmentChoirPrompt(question) {
+  return [
+    "Run Choir transcript analysis for this request:",
+    question,
+    "",
+    "Follow the Choir Mode structure exactly."
   ].join("\n");
 }
 
@@ -150,7 +194,9 @@ if (!requireDemoToken(req, res)) return;
     console.log(`ASK sector=${sector} vsid=${vsid} docs=${docCount} question=${question.slice(0,200)}`);
 
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-    const route = routeUserQuery(question);
+    const route = body.outputFormat === "choir"
+    ? { outputFormat: "choir" }
+    : routeUserQuery(question);
 
     const systemParts = [
       "You are a trends research assistant.",
@@ -170,8 +216,14 @@ if (!requireDemoToken(req, res)) return;
       systemParts.push(driverSystemInstructions());
     }
 
+    if (route.outputFormat === "choir") {
+      systemParts.push(choirSystemInstructions());
+    }
+
     const system = systemParts.join("\n");
-    const userPrompt = route.outputFormat === "scenario"
+    const userPrompt = route.outputFormat === "choir"
+    ? augmentChoirPrompt(question)
+    : route.outputFormat === "scenario"
       ? augmentScenarioPrompt(question)
       : route.outputFormat === "drivers"
         ? augmentDriversPrompt(question)
@@ -187,7 +239,11 @@ if (!requireDemoToken(req, res)) return;
       model,
       input,
       tools: [{ type: "file_search", vector_store_ids: [vsid] }],
-      max_output_tokens: route.outputFormat === "scenario" ? 2200 : route.outputFormat === "drivers" ? 1800 : 1500
+      max_output_tokens:
+        route.outputFormat === "scenario" ? 2200 :
+        route.outputFormat === "choir" ? 1800 :
+        route.outputFormat === "drivers" ? 1800 :
+        1500
     });
 
     console.log(`ASK RESULT sector=${sector} format=${route.outputFormat} vsid=${vsid} answerTokens=${(resp?.output_tokens || 0)}`);

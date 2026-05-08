@@ -134,7 +134,11 @@
     html = html.replace(/<p>\|([\s\S]*?)\|<\/p>(?:<p>\|[-:\s|]+\|<\/p>)((?:<p>\|[\s\S]*?\|<\/p>)+)/g, (m, header, rows) => {
       const ths = header.split("|").map(c => c.trim()).filter(Boolean).map(c => `<th>${c}</th>`).join("");
       const trs = rows.match(/<p>\|[\s\S]*?\|<\/p>/g).map(r => {
-        const cells = r.replace(/^<p>\||\|<\/p>$/g, "").split("|").map(c => `<td>${c.trim()}</td>`).join("");
+        const cells = r
+          .replace(/^<p>\||\|<\/p>$/g, "")
+          .split("|")
+          .map(c => `<td>${c.trim().replace(/&lt;br&gt;/g, "<br>")}</td>`)
+          .join("");
         return `<tr>${cells}</tr>`;
       }).join("");
       return `<div class="choir-table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;

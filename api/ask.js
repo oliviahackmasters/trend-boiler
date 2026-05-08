@@ -46,18 +46,24 @@ function scenarioSystemInstructions() {
     "**Axes**",
     "- X-axis: [low/weak pole] <-> [high/strong pole]",
     "- Y-axis: [low/weak pole] <-> [high/strong pole]",
-    "**2x2 matrix**",
-    "| | X-axis low/weak pole | X-axis high/strong pole |",
-    "|---|---|---|",
-    "| Y-axis high/strong pole | **Scenario name:** ...; **World:** ...; **Implication:** ... | **Scenario name:** ...; **World:** ...; **Implication:** ... |",
-    "| Y-axis low/weak pole | **Scenario name:** ...; **World:** ...; **Implication:** ... | **Scenario name:** ...; **World:** ...; **Implication:** ... |",
-    "**How to use it**",
+   "**2x2 matrix**",
+  "| | Known | Unknown |",
+  "|---|---|---|",
+  "| Agreed | - Shared known theme one<br>- Shared known theme two | - Shared unknown theme one<br>- Shared unknown theme two |",
+  "| Contested | - Contested known theme one<br>- Contested known theme two | - Contested unknown theme one<br>- Contested unknown theme two |",
+  "**How to use it**",
     "- 2-3 concise strategy prompts or watch-outs.",
     "",
     "Rules:",
     "- Do not use generic axes like optimistic/pessimistic or high/low adoption unless those are clearly the strongest uncertainties.",
     "- Keep each quadrant concise enough to read in a table cell.",
-    "- Use British English."
+    "- Use British English.",
+    "- Each matrix cell must contain 2-4 bullet points.",
+  "- Use <br> between bullet points inside table cells.",
+  "- Do not write paragraphs inside matrix cells.",
+  "- Do not use scenario names.",
+  "- Universal themes should summarise the Agreed row.",
+  "- Unique themes should summarise the Contested row."
   ].join("\n");
 }
 

@@ -41,7 +41,7 @@
   #hmcanary table{ width:100%; min-width:620px; border-collapse:collapse; border:1px solid rgba(209,128,87,.55); color:rgba(255,255,255,.92); font-size:12px; line-height:1.45; }
   #hmcanary th,#hmcanary td{ border:1px solid rgba(209,128,87,.42); padding:9px 10px; vertical-align:top; text-align:left; }
   #hmcanary th{ color:var(--hm-copper); background:rgba(209,128,87,.1); text-transform:uppercase; letter-spacing:.8px; }
-  #hmcanary .canary-textarea{ width:100%; min-height:92px; resize:vertical; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:12px; outline:none; font-size:13px; line-height:1.45; }
+  #hmcanary .canary-textarea{ width:100%; min-height:45px; resize:vertical; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:12px; outline:none; font-size:13px; line-height:1.45; }
   #hmcanary .canary-textarea::placeholder{ color:rgba(255,255,255,.62); }
   #hmcanary .canary-library{
   border:1px solid var(--hm-copper);
@@ -238,6 +238,82 @@
   text-transform:uppercase;
   letter-spacing:.8px;
 }
+
+.loader-radar {
+  width: 84px;
+  height: 84px;
+  margin: 8px auto 10px auto;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(209,128,87,0.24), transparent 60%),
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 2px, transparent 2px),
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 4px, transparent 4px);
+  box-shadow:
+    inset 0 0 0 2px rgba(209,128,87,0.65),
+    0 0 20px rgba(209,128,87,0.08);
+}
+
+.loader-radar::after {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(209,128,87,0),
+    rgba(209,128,87,0.45)
+  );
+  animation: hmRadarSweep 2s linear infinite;
+}
+
+@keyframes hmRadarSweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#hmcanary .canary-section-title{
+  color:var(--hm-copper);
+  font-size:12px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:1.1px;
+  margin:0 0 10px 0;
+}
+
+#hmcanary .canary-upload-panel{
+  border:1px solid rgba(209,128,87,.45);
+  background:rgba(255,255,255,.015);
+  padding:12px;
+  margin:12px 0;
+}
+
+#hmcanary .canary-upload-grid{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+
+#hmcanary .canary-library-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+
+#hmcanary .canary-library-toggle{
+  height:34px;
+  padding:8px 10px;
+  font-size:11px;
+}
+
+#hmcanary .canary-hidden{
+  display:none !important;
+}
+
 </style>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
@@ -256,30 +332,28 @@
       </div>
       <p class="canary-sub">Upload interview, meeting or hack transcripts, generate matrices, and ask questions grounded in selected transcripts.</p>
       <div class="canary-note"><strong>Confidentiality note:</strong> canary uses a separate vector store via <code>VECTOR_STORE_ID_canary</code>. Do not use for sensitive transcripts until storage retention, access and deletion policies are approved.</div>
-      <div class="canary-row">
+      <div class="canary-upload-panel">
+      <div class="canary-section-title">Upload and manage transcripts</div>
+
+      <div class="canary-upload-grid">
         <input class="canary-file" type="file" id="canaryFiles" accept="application/pdf" multiple />
         <button class="canary-btn" id="canaryUpload">Upload transcripts</button>
-        <button class="canary-btn" id="canaryAnalyse">Analyse</button>
         <div class="canary-status" id="canaryStatus">Ready</div>
       </div>
-      <div class="canary-divider"></div>
-      <div class="canary-library" id="canaryLibrary"></div>
+<br>
       <textarea class="canary-textarea" id="canaryContext" placeholder="Optional: add project context, research question, audience, or decision this should inform..."></textarea>
 
+      <div class="canary-library" id="canaryLibrary"></div>
+    </div>  
       <div class="canary-divider"></div>
-
-      <div class="canary-results" id="canaryResults">Upload transcript PDFs, then select Analyse.</div>
-
-      <div class="canary-divider"></div>
-
       <div class="canary-chat" id="canaryChat"></div>
 
       <div class="canary-promptPanel">
         <div class="canary-promptTitle">STARTERS FOR TEN</div>
         <div class="canary-starters">
+          <button type="button" class="canary-prompt" data-prompt-template="Generate matrices from the selected transcripts">Generate matrices</button>
           <button type="button" class="canary-prompt" data-prompt-template="Pull out quotes about ">Pull out quotes about...</button>
           <button type="button" class="canary-prompt" data-prompt-template="What was the general sentiment about ">General sentiment about...</button>
-          <button type="button" class="canary-prompt" data-prompt-template="What did [person] say about ">What did person say about...</button>
         </div>
       </div>
 
@@ -294,9 +368,7 @@
   const statusEl = mount.querySelector("#canaryStatus");
   const filesEl = mount.querySelector("#canaryFiles");
   const uploadBtn = mount.querySelector("#canaryUpload");
-  const analyseBtn = mount.querySelector("#canaryAnalyse");
   const contextEl = mount.querySelector("#canaryContext");
-  const resultsEl = mount.querySelector("#canaryResults");
   const libraryEl = mount.querySelector("#canaryLibrary");
   const chatEl = mount.querySelector("#canaryChat");
 const qEl = mount.querySelector("#canaryQ");
@@ -304,10 +376,12 @@ const askBtn = mount.querySelector("#canaryAsk");
 const exportChatPngBtn = mount.querySelector("#canaryExportChatPng");
 
 let history = [];
-
 let uploaded = [];
+let libraryVisible = true;
 
 async function loadLibrary() {
+  libraryEl.innerHTML = loadingHtml("Loading library...");
+
   const resp = await fetch(`${API_BASE}/api/canary-library`, {
     method: "GET",
     headers: headersJson()
@@ -343,32 +417,46 @@ async function updateLibrary(action, payload = {}) {
 function renderLibrary() {
   const selectedCount = uploaded.filter((f) => f.selected !== false).length;
 
+  const rows = uploaded.length
+    ? uploaded.map((file, index) => `
+      <div class="canary-library-item">
+        <div class="canary-library-meta">
+          <strong>${escapeHtml(file.name)}</strong>
+          <div>TYPE: TRANSCRIPT</div>
+          <div>ADDED: ${escapeHtml(file.addedAt || "")}</div>
+        </div>
+        <div class="canary-library-actions">
+          <button class="canary-btn canary-select-toggle" data-index="${index}">
+            ${file.selected === false ? "DESELECTED" : "SELECTED"}
+          </button>
+          <button class="canary-btn canary-delete" data-index="${index}">
+            DELETE
+          </button>
+        </div>
+      </div>
+    `).join("")
+    : `<div class="canary-library-empty">No transcripts uploaded yet.</div>`;
+
   libraryEl.innerHTML = `
-    <div class="canary-library-title">
-      LIBRARY (${uploaded.length}) — ${selectedCount} SELECTED
+    <div class="canary-library-header">
+      <div class="canary-library-title">
+        LIBRARY (${uploaded.length}) — ${selectedCount} SELECTED
+      </div>
+      <button class="canary-btn canary-library-toggle" type="button">
+        ${libraryVisible ? "HIDE" : "SHOW"}
+      </button>
     </div>
-    ${
-      uploaded.length
-        ? uploaded.map((file, index) => `
-          <div class="canary-library-item">
-            <div class="canary-library-meta">
-              <strong>${escapeHtml(file.name)}</strong>
-              <div>TYPE: TRANSCRIPT</div>
-              <div>ADDED: ${escapeHtml(file.addedAt || "")}</div>
-            </div>
-            <div class="canary-library-actions">
-              <button class="canary-btn canary-select-toggle" data-index="${index}">
-                ${file.selected === false ? "DESELECTED" : "SELECTED"}
-              </button>
-              <button class="canary-btn canary-delete" data-index="${index}">
-                DELETE
-              </button>
-            </div>
-          </div>
-        `).join("")
-        : `<div class="canary-library-empty">No transcripts uploaded yet.</div>`
-    }
+
+    <div class="canary-library-list ${libraryVisible ? "" : "canary-hidden"}">
+      ${rows}
+    </div>
   `;
+
+  const toggleBtn = libraryEl.querySelector(".canary-library-toggle");
+  toggleBtn?.addEventListener("click", () => {
+    libraryVisible = !libraryVisible;
+    renderLibrary();
+  });
 
   libraryEl.querySelectorAll(".canary-select-toggle").forEach((button) => {
     button.addEventListener("click", () => {
@@ -376,7 +464,7 @@ function renderLibrary() {
 
       updateLibrary("toggle", { id: uploaded[index].id }).catch((err) => {
         setStatus("Library update failed", true);
-        resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+        showError(err);
       });
     });
   });
@@ -387,10 +475,39 @@ function renderLibrary() {
 
       updateLibrary("delete", { id: uploaded[index].id }).catch((err) => {
         setStatus("Library update failed", true);
-        resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+        showError(err);
       });
     });
   });
+}
+
+function createLoadingMessage(message){
+  const loadingMsg = document.createElement("div");
+  loadingMsg.className = "canary-msg canary-ai";
+
+  const title = document.createElement("div");
+  title.className = "canary-msg-title";
+  title.textContent = "CANARY";
+
+  const body = document.createElement("div");
+  body.className = "canary-msg-body";
+  body.innerHTML = `<div class="loader-radar"></div><p>${escapeHtml(message)}</p>`;
+
+  loadingMsg.appendChild(title);
+  loadingMsg.appendChild(body);
+  chatEl.appendChild(loadingMsg);
+  chatEl.scrollTop = chatEl.scrollHeight;
+
+  return loadingMsg;
+}
+
+function loadingHtml(message){
+  return `<div class="loader-radar"></div><p><strong>${escapeHtml(message)}</strong></p>`;
+}
+
+function showError(err){
+  const message = escapeHtml(err?.message || err || "Unknown error");
+  addMsg("ai", `**Error:** ${message}`);
 }
 
   let sessionToken = localStorage.getItem("hm_canary_sessionToken") || crypto.randomUUID();
@@ -410,43 +527,6 @@ function renderLibrary() {
 
   function escapeHtml(s){
     return String(s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
-  }
-
-  function formatMarkdown(text){
-    let html = escapeHtml(text)
-      .replace(/^###\s+(.+)$/gm, "<p><strong>$1</strong></p>")
-      .replace(/^##\s+(.+)$/gm, "<p><strong>$1</strong></p>")
-      .replace(/^#\s+(.+)$/gm, "<p><strong>$1</strong></p>")
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-
-    const lines = html.split("\n");
-    const out = [];
-    let inList = false;
-    for (const line of lines) {
-      if (/^\s*-\s+/.test(line)) {
-        if (!inList) { out.push("<ul>"); inList = true; }
-        out.push("<li>" + line.replace(/^\s*-\s+/, "") + "</li>");
-      } else {
-        if (inList) { out.push("</ul>"); inList = false; }
-        if (line.trim()) out.push("<p>" + line + "</p>");
-      }
-    }
-    if (inList) out.push("</ul>");
-    html = out.join("");
-
-    html = html.replace(/<p>\|([\s\S]*?)\|<\/p>(?:<p>\|[-:\s|]+\|<\/p>)((?:<p>\|[\s\S]*?\|<\/p>)+)/g, (m, header, rows) => {
-      const ths = header.split("|").map(c => c.trim()).filter(Boolean).map(c => `<th>${c}</th>`).join("");
-      const trs = rows.match(/<p>\|[\s\S]*?\|<\/p>/g).map(r => {
-        const cells = r
-          .replace(/^<p>\||\|<\/p>$/g, "")
-          .split("|")
-          .map(c => `<td>${c.trim().replace(/&lt;br&gt;/g, "<br>")}</td>`)
-          .join("");
-        return `<tr>${cells}</tr>`;
-      }).join("");
-      return `<div class="canary-table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
-    });
-    return html;
   }
 
   function cleanAssistantMarkup(html){
@@ -494,38 +574,122 @@ function renderMarkdownTable(lines){
   `;
 }
 
+
 function renderMarkdownBlock(block){
   const lines = String(block || "").split("\n").map(l => l.trim()).filter(Boolean);
   if (!lines.length) return "";
-
-  const heading = lines[0].match(/^(#{1,6})\s+(.+)$/);
-  if (heading){
-    const headingHtml = `<p><strong>${formatInlineMarkdown(heading[2])}</strong></p>`;
-    const rest = lines.slice(1).join("\n").trim();
-    return headingHtml + (rest ? renderMarkdownBlock(rest) : "");
-  }
 
   if (isMarkdownTable(lines)){
     return renderMarkdownTable(lines);
   }
 
-  const isList = lines.length > 1 && lines.every(l => /^(\-|\•|\*|\d+\.)\s+/.test(l));
-  if (isList){
-    const isOrdered = lines.every(l => /^\d+\.\s+/.test(l));
-    const items = lines.map(l => l.replace(/^(\-|\•|\*|\d+\.)\s+/, "").trim());
-    return isOrdered
-      ? `<ol>${items.map(i => `<li>${formatInlineMarkdown(i)}</li>`).join("")}</ol>`
-      : `<ul>${items.map(i => `<li>${formatInlineMarkdown(i)}</li>`).join("")}</ul>`;
+  const out = [];
+  let listItems = [];
+
+  function flushList(){
+    if (listItems.length) {
+      out.push(`<ul>${listItems.map(i => `<li>${formatInlineMarkdown(i)}</li>`).join("")}</ul>`);
+      listItems = [];
+    }
   }
 
-  return `<p>${formatInlineMarkdown(block).replace(/\n/g, "<br>")}</p>`;
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushList();
+      out.push(`<p><strong>${formatInlineMarkdown(heading[2])}</strong></p>`);
+      continue;
+    }
+
+    const bullet = line.match(/^(\-|\•|\*)\s+(.+)$/);
+    if (bullet) {
+      listItems.push(bullet[2].trim());
+      continue;
+    }
+
+    const numbered = line.match(/^\d+\.\s+(.+)$/);
+    if (numbered) {
+      listItems.push(numbered[1].trim());
+      continue;
+    }
+
+    flushList();
+    out.push(`<p>${formatInlineMarkdown(line)}</p>`);
+  }
+
+  flushList();
+  return out.join("");
 }
 
 function formatMarkdownToHtml(text){
   const src = String(text || "");
   const safe = cleanAssistantMarkup(escapeHtml(src));
-  const blocks = safe.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
-  return blocks.map(renderMarkdownBlock).join("");
+  const lines = safe.split("\n");
+
+  const blocks = [];
+  let current = [];
+
+  function flush(){
+    if (current.length) {
+      blocks.push(current.join("\n").trim());
+      current = [];
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flush();
+      continue;
+    }
+
+    const isTableLine = trimmed.includes("|");
+    const nextLine = lines[i + 1] ? lines[i + 1].trim() : "";
+    const prevLine = lines[i - 1] ? lines[i - 1].trim() : "";
+
+    const isTableHeader =
+      isTableLine &&
+      nextLine &&
+      /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(nextLine);
+
+    const isTableSeparator =
+      /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(trimmed);
+
+    const isTableRow =
+      isTableLine &&
+      (
+        isTableHeader ||
+        isTableSeparator ||
+        isTableSeparator ||
+        /^\|/.test(prevLine) ||
+        /^\|/.test(trimmed)
+      );
+
+    if (isTableRow) {
+      flush();
+
+      const tableLines = [];
+      while (i < lines.length && lines[i].trim().includes("|")) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      i--;
+
+      blocks.push(tableLines.join("\n"));
+      continue;
+    }
+
+    current.push(line);
+  }
+
+  flush();
+
+  return blocks
+    .filter(Boolean)
+    .map(renderMarkdownBlock)
+    .join("");
 }
 
 function addMsg(who, text){
@@ -585,16 +749,19 @@ autoSizeTextarea(qEl);
 async function uploadFiles(){
   const files = Array.from(filesEl.files || []);
   if (!files.length) { setStatus("Choose PDFs", true); return; }
-  uploadBtn.disabled = true; analyseBtn.disabled = true;
+
+  uploadBtn.disabled = true;
+  libraryEl.innerHTML = loadingHtml("Uploading transcript...");
+  setStatus("Uploading");
 
   try {
     for (let i = 0; i < files.length; i++) {
       setStatus(`Uploading ${i + 1}/${files.length}`);
+
       const uploadedFile = await uploadOne(files[i]);
 
       await updateLibrary("add", {
         item: {
-          id: crypto.randomUUID(),
           ...uploadedFile,
           selected: true,
           addedAt: new Date().toLocaleString()
@@ -602,60 +769,18 @@ async function uploadFiles(){
       });
     }
 
-    resultsEl.innerHTML = `<p><strong>Uploaded</strong></p><ul>${uploaded.map(f => `<li>${escapeHtml(f.name)}${f.duplicate ? " — already in canary" : ""}</li>`).join("")}</ul>`;
+    addMsg("ai", `**Uploaded:** ${files.map(f => f.name).join(", ")}`);
     setStatus("Uploaded");
 
   } catch (err) {
     setStatus("Upload failed", true);
-    resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+    showError(err);
   } finally {
     uploadBtn.disabled = false;
-    analyseBtn.disabled = false;
   }
 }
 
-  async function analyse(){
-    analyseBtn.disabled = true; uploadBtn.disabled = true;
-    setStatus("Analysing");
-    const selectedUploads = uploaded.filter((file) => file.selected !== false);
-
-    if (!selectedUploads.length) {
-      setStatus("Select at least one transcript", true);
-      analyseBtn.disabled = false;
-      uploadBtn.disabled = false;
-      return;
-    }
-    resultsEl.innerHTML = "<p><strong>Analysing transcripts...</strong></p>";
-    try {
-      const context = contextEl.value.trim();
-      const question = [
-        "canary ANALYSIS REQUEST",
-        "Analyse the uploaded interviews, meetings, hacks and transcripts.",
-        `Use only these selected transcripts: ${selectedUploads.map((f) => f.name).join(", ")}`,
-        context ? `Project context: ${context}` : "",
-        "Output a 2x2 matrix in bullet points.",
-        "X-axis: Known <-> Unknown.",
-        "Y-axis: Agreed <-> Contested.",
-        "Finish with a simple summary of universal themes from the bottom half and unique themes from the top half."
-      ].filter(Boolean).join("\n");
-
-      const resp = await fetch(`${API_BASE}/api/ask`, {
-        method:"POST",
-        headers:headersJson(),
-        body:JSON.stringify({ sector:SECTOR, outputFormat:"canary", question, history:[] })
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || data.error) throw new Error(data.details || data.error || "Analysis failed");
-      resultsEl.innerHTML = formatMarkdownToHtml(data.answer || "No answer returned.");
-      setStatus("Done");
-    } catch (err) {
-      setStatus("Analysis failed", true);
-      resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
-    } finally {
-      analyseBtn.disabled = false; uploadBtn.disabled = false;
-    }
-  }
-
+ 
   async function askTranscript(question){
   const q = String(question || "").trim();
   if (!q) return;
@@ -669,41 +794,52 @@ async function uploadFiles(){
 
   addMsg("me", q);
 
-  const loadingMsg = document.createElement("div");
-  loadingMsg.className = "canary-msg canary-ai";
-  loadingMsg.innerHTML = `
-    <div class="canary-msg-title">CANARY</div>
-    <div class="canary-msg-body"><p><strong>Thinking...</strong></p></div>
-  `;
-  chatEl.appendChild(loadingMsg);
-  chatEl.scrollTop = chatEl.scrollHeight;
+  const loadingMsg = createLoadingMessage("Thinking...");
 
   askBtn.disabled = true;
   uploadBtn.disabled = true;
-  analyseBtn.disabled = true;
   setStatus("Thinking");
 
   try {
     const selectedNames = selectedUploads.map((f) => f.name).join(", ");
 
-    const prompt = [
-      "CANARY TRANSCRIPT QUERY",
-      `Use only these selected transcripts: ${selectedNames}`,
-      "",
-      "Answer the user's question using only the selected transcripts.",
-      "If asked for quotes, pull out short direct quotes where available.",
-      "If a person is mentioned, attribute what they said only if the transcript supports it.",
-      "If the answer is not supported by the selected transcripts, say: NOT IN SELECTED TRANSCRIPTS.",
-      "",
-      `User question: ${q}`
-    ].join("\n");
+   const wantsMatrices = /\b(generate|create|make|build|show|produce)?\s*(the\s+)?(matrices|matrix|2x2|2\s*x\s*2)\b/i.test(q);
+
+    const prompt = wantsMatrices
+    ? [
+        "CANARY MATRIX REQUEST",
+        `Use only these selected transcripts: ${selectedNames}`,
+        "",
+        "Generate the Canary matrices from the selected transcripts.",
+        "Output two 2x2 matrices in bullet points.",
+        "Matrix 1 X-axis: Known <-> Unknown.",
+        "Matrix 1 Y-axis: Agreed <-> Contested.",
+        "Matrix 2 X-axis: Certain <-> Uncertain.",
+        "Matrix 2 Y-axis: Internal <-> External.",
+        "Include Evidence signals, Axes, both matrices, Universal themes, and Unique themes.",
+        "",
+        `User request: ${q}`
+      ].join("\n")
+    : [
+        "CANARY TRANSCRIPT QUERY",
+        `Use only these selected transcripts: ${selectedNames}`,
+        "",
+        "Answer the user's question using only the selected transcripts.",
+        "Do not generate the Canary matrices unless the user explicitly asks for matrices, a matrix, a 2x2, or analysis using axes.",
+        "If asked for quotes, pull out short direct quotes where available.",
+        "If asked about sentiment, summarise the general sentiment and note any disagreement or nuance.",
+        "If a person is mentioned, attribute what they said only if the transcript supports it.",
+        "If the answer is not supported by the selected transcripts, say: NOT IN SELECTED TRANSCRIPTS.",
+        "",
+        `User question: ${q}`
+      ].join("\n");
 
     const resp = await fetch(`${API_BASE}/api/ask`, {
       method: "POST",
       headers: headersJson(),
       body: JSON.stringify({
         sector: SECTOR,
-        outputFormat: "canary",
+        outputFormat: wantsMatrices ? "canary" : "default",
         question: prompt,
         history
       })
@@ -733,17 +869,32 @@ async function uploadFiles(){
   } finally {
     askBtn.disabled = false;
     uploadBtn.disabled = false;
-    analyseBtn.disabled = false;
   }
 }
 
 async function downloadChatPng(){
+  const previousMaxHeight = chatEl.style.maxHeight;
+  const previousOverflow = chatEl.style.overflow;
+  const previousHeight = chatEl.style.height;
+  const previousScrollTop = chatEl.scrollTop;
+
   try {
+    // Expand chat so html2canvas captures the full conversation, not just visible scroll area.
+    chatEl.style.maxHeight = "none";
+    chatEl.style.overflow = "visible";
+    chatEl.style.height = "auto";
+    chatEl.scrollTop = 0;
+
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
     const canvas = await html2canvas(chatEl, {
       backgroundColor: "#000000",
       scale: 2,
       useCORS: true,
-      allowTaint: true
+      allowTaint: true,
+      windowWidth: chatEl.scrollWidth,
+      windowHeight: chatEl.scrollHeight,
+      height: chatEl.scrollHeight
     });
 
     const a = document.createElement("a");
@@ -752,14 +903,20 @@ async function downloadChatPng(){
     document.body.appendChild(a);
     a.click();
     a.remove();
+
   } catch (err) {
     setStatus("Export failed", true);
-    resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+    showError(err);
+
+  } finally {
+    chatEl.style.maxHeight = previousMaxHeight;
+    chatEl.style.overflow = previousOverflow;
+    chatEl.style.height = previousHeight;
+    chatEl.scrollTop = previousScrollTop;
   }
 }
 
   uploadBtn.addEventListener("click", uploadFiles);
-analyseBtn.addEventListener("click", analyse);
 askBtn.addEventListener("click", () => {
   const q = (qEl.value || "").trim();
   if (!q) return;
@@ -787,7 +944,7 @@ mount.querySelectorAll(".canary-prompt").forEach((btn) => {
 
 loadLibrary().catch((err) => {
   setStatus("Library load failed", true);
-  resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+  showError(err);
 });
 })();
 </script>

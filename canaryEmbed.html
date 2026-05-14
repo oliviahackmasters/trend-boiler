@@ -90,8 +90,156 @@
   color:rgba(255,255,255,.72);
   font-size:12px;
 }
-</style>
 
+#hmcanary .canary-chat{
+  margin-top:14px;
+  border:1px solid var(--hm-copper);
+  background:rgba(255,255,255,.02);
+  padding:12px;
+  max-height:650px;
+  overflow:auto;
+}
+
+#hmcanary .canary-msg{
+  border:1px solid rgba(209,128,87,.55);
+  padding:10px 12px;
+  margin:0 0 10px 0;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+  line-height:1.6;
+  font-size:13px;
+}
+
+#hmcanary .canary-msg.canary-me{
+  background:rgba(209,128,87,.10);
+}
+
+#hmcanary .canary-msg.canary-ai{
+  background:rgba(255,255,255,.01);
+}
+
+#hmcanary .canary-msg-title{
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:1.2px;
+  color:var(--hm-copper);
+  font-size:12px;
+  margin-bottom:6px;
+}
+
+#hmcanary .canary-msg-body p{
+  margin:0 0 10px 0;
+}
+
+#hmcanary .canary-msg-body strong{
+  color:var(--hm-copper);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:1px;
+}
+
+#hmcanary .canary-inputRow{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  margin-top:12px;
+}
+
+#hmcanary .canary-input{
+  width:100%;
+  display:block;
+  background:transparent;
+  color:var(--hm-white);
+  border:1px solid var(--hm-copper);
+  padding:12px;
+  outline:none;
+  font-size:13px;
+  resize:none;
+  overflow:hidden;
+  min-height:44px;
+  max-height:160px;
+  line-height:1.4;
+}
+
+#hmcanary .canary-input::placeholder{
+  color:rgba(255,255,255,.65);
+}
+
+#hmcanary .canary-starters{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+  gap:8px;
+  margin:10px 0 0 0;
+}
+
+#hmcanary .canary-promptPanel{
+  border:1px solid rgba(209,128,87,.45);
+  background:rgba(255,255,255,.015);
+  padding:10px;
+  margin-top:12px;
+}
+
+#hmcanary .canary-promptTitle{
+  margin:0 0 8px 0;
+  color:var(--hm-copper);
+  font-size:11px;
+  font-weight:700;
+  line-height:1.35;
+  letter-spacing:1px;
+  text-transform:uppercase;
+}
+
+#hmcanary .canary-prompt{
+  text-align:left;
+  padding:9px 10px;
+  border:1px solid var(--hm-copper);
+  background:rgba(255,255,255,.02);
+  color:var(--hm-white);
+  cursor:pointer;
+  font-weight:600;
+  font-size:11px;
+  line-height:1.35;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+}
+
+#hmcanary .canary-prompt:hover{
+  background:rgba(209,128,87,.18);
+}
+
+#hmcanary .canary-table-wrap{
+  width:100%;
+  overflow-x:auto;
+  margin:10px 0 12px;
+}
+
+#hmcanary .canary-md-table{
+  width:100%;
+  min-width:620px;
+  border-collapse:collapse;
+  border:1px solid rgba(209,128,87,.55);
+  color:rgba(255,255,255,.92);
+  font-size:12px;
+  line-height:1.45;
+}
+
+#hmcanary .canary-md-table th,
+#hmcanary .canary-md-table td{
+  border:1px solid rgba(209,128,87,.42);
+  padding:9px 10px;
+  vertical-align:top;
+  text-align:left;
+}
+
+#hmcanary .canary-md-table th{
+  color:var(--hm-copper);
+  background:rgba(209,128,87,.10);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+}
+</style>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
 (() => {
   const API_BASE = "https://trend-report-platform.vercel.app";
@@ -106,7 +254,7 @@
           <h2>canary</h2>
         </div>
       </div>
-      <p class="canary-sub">Upload interview, meeting or hack transcript PDFs and generate a Known / Unknown x Agreed / Contested theme matrix.</p>
+      <p class="canary-sub">Upload interview, meeting or hack transcripts, generate matrices, and ask questions grounded in selected transcripts.</p>
       <div class="canary-note"><strong>Confidentiality note:</strong> canary uses a separate vector store via <code>VECTOR_STORE_ID_canary</code>. Do not use for sensitive transcripts until storage retention, access and deletion policies are approved.</div>
       <div class="canary-row">
         <input class="canary-file" type="file" id="canaryFiles" accept="application/pdf" multiple />
@@ -117,8 +265,29 @@
       <div class="canary-divider"></div>
       <div class="canary-library" id="canaryLibrary"></div>
       <textarea class="canary-textarea" id="canaryContext" placeholder="Optional: add project context, research question, audience, or decision this should inform..."></textarea>
+
       <div class="canary-divider"></div>
+
       <div class="canary-results" id="canaryResults">Upload transcript PDFs, then select Analyse.</div>
+
+      <div class="canary-divider"></div>
+
+      <div class="canary-chat" id="canaryChat"></div>
+
+      <div class="canary-promptPanel">
+        <div class="canary-promptTitle">STARTERS FOR TEN</div>
+        <div class="canary-starters">
+          <button type="button" class="canary-prompt" data-prompt-template="Pull out quotes about ">Pull out quotes about...</button>
+          <button type="button" class="canary-prompt" data-prompt-template="What was the general sentiment about ">General sentiment about...</button>
+          <button type="button" class="canary-prompt" data-prompt-template="What did [person] say about ">What did person say about...</button>
+        </div>
+      </div>
+
+      <div class="canary-inputRow">
+        <textarea class="canary-input" id="canaryQ" rows="1" placeholder="Ask the selected transcripts..."></textarea>
+        <button class="canary-btn" id="canaryAsk">SEND</button>
+        <button class="canary-btn" id="canaryExportChatPng">EXPORT SUMMARY</button>
+      </div>
     </div>
   `;
 
@@ -129,6 +298,12 @@
   const contextEl = mount.querySelector("#canaryContext");
   const resultsEl = mount.querySelector("#canaryResults");
   const libraryEl = mount.querySelector("#canaryLibrary");
+  const chatEl = mount.querySelector("#canaryChat");
+const qEl = mount.querySelector("#canaryQ");
+const askBtn = mount.querySelector("#canaryAsk");
+const exportChatPngBtn = mount.querySelector("#canaryExportChatPng");
+
+let history = [];
 
 let uploaded = [];
 
@@ -274,6 +449,113 @@ function renderLibrary() {
     return html;
   }
 
+  function cleanAssistantMarkup(html){
+  return String(html || "")
+    .replace(/【[^】]*†source[^】]*】/g, "")
+    .replace(/\[[^\]]*†source[^\]]*\]/g, "")
+    .replace(/[ \t]+([.,;:])/g, "$1");
+}
+
+function formatInlineMarkdown(text){
+  return String(text || "")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+}
+
+function isMarkdownTable(lines){
+  return lines.length >= 3 &&
+    lines[0].includes("|") &&
+    /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(lines[1]);
+}
+
+function splitMarkdownTableRow(line){
+  return String(line || "")
+    .replace(/^\s*\|/, "")
+    .replace(/\|\s*$/, "")
+    .split("|")
+    .map(cell => cell.trim());
+}
+
+function renderMarkdownTable(lines){
+  const headers = splitMarkdownTableRow(lines[0]);
+  const rows = lines.slice(2).map(splitMarkdownTableRow);
+
+  return `
+    <div class="canary-table-wrap">
+      <table class="canary-md-table">
+        <thead>
+          <tr>${headers.map(cell => `<th>${formatInlineMarkdown(cell)}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `<tr>${headers.map((_, idx) => `<td>${formatInlineMarkdown(row[idx] || "")}</td>`).join("")}</tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderMarkdownBlock(block){
+  const lines = String(block || "").split("\n").map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return "";
+
+  const heading = lines[0].match(/^(#{1,6})\s+(.+)$/);
+  if (heading){
+    const headingHtml = `<p><strong>${formatInlineMarkdown(heading[2])}</strong></p>`;
+    const rest = lines.slice(1).join("\n").trim();
+    return headingHtml + (rest ? renderMarkdownBlock(rest) : "");
+  }
+
+  if (isMarkdownTable(lines)){
+    return renderMarkdownTable(lines);
+  }
+
+  const isList = lines.length > 1 && lines.every(l => /^(\-|\•|\*|\d+\.)\s+/.test(l));
+  if (isList){
+    const isOrdered = lines.every(l => /^\d+\.\s+/.test(l));
+    const items = lines.map(l => l.replace(/^(\-|\•|\*|\d+\.)\s+/, "").trim());
+    return isOrdered
+      ? `<ol>${items.map(i => `<li>${formatInlineMarkdown(i)}</li>`).join("")}</ol>`
+      : `<ul>${items.map(i => `<li>${formatInlineMarkdown(i)}</li>`).join("")}</ul>`;
+  }
+
+  return `<p>${formatInlineMarkdown(block).replace(/\n/g, "<br>")}</p>`;
+}
+
+function formatMarkdownToHtml(text){
+  const src = String(text || "");
+  const safe = cleanAssistantMarkup(escapeHtml(src));
+  const blocks = safe.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  return blocks.map(renderMarkdownBlock).join("");
+}
+
+function addMsg(who, text){
+  const wrap = document.createElement("div");
+  wrap.className = "canary-msg " + (who === "me" ? "canary-me" : "canary-ai");
+
+  const title = document.createElement("div");
+  title.className = "canary-msg-title";
+  title.textContent = who === "me" ? "YOU" : "CANARY";
+
+  const body = document.createElement("div");
+  body.className = "canary-msg-body";
+  body.innerHTML = who === "ai"
+    ? formatMarkdownToHtml(text || "")
+    : escapeHtml(text || "");
+
+  wrap.appendChild(title);
+  wrap.appendChild(body);
+  chatEl.appendChild(wrap);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function autoSizeTextarea(el){
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 160) + "px";
+}
+
+qEl.addEventListener("input", () => autoSizeTextarea(qEl));
+autoSizeTextarea(qEl);
+
   async function uploadOne(file){
     const fd = new FormData();
     fd.append("file", file);
@@ -364,7 +646,7 @@ async function uploadFiles(){
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || data.error) throw new Error(data.details || data.error || "Analysis failed");
-      resultsEl.innerHTML = formatMarkdown(data.answer || "No answer returned.");
+      resultsEl.innerHTML = formatMarkdownToHtml(data.answer || "No answer returned.");
       setStatus("Done");
     } catch (err) {
       setStatus("Analysis failed", true);
@@ -374,8 +656,134 @@ async function uploadFiles(){
     }
   }
 
+  async function askTranscript(question){
+  const q = String(question || "").trim();
+  if (!q) return;
+
+  const selectedUploads = uploaded.filter((file) => file.selected !== false);
+
+  if (!selectedUploads.length) {
+    setStatus("Select at least one transcript", true);
+    return;
+  }
+
+  addMsg("me", q);
+
+  const loadingMsg = document.createElement("div");
+  loadingMsg.className = "canary-msg canary-ai";
+  loadingMsg.innerHTML = `
+    <div class="canary-msg-title">CANARY</div>
+    <div class="canary-msg-body"><p><strong>Thinking...</strong></p></div>
+  `;
+  chatEl.appendChild(loadingMsg);
+  chatEl.scrollTop = chatEl.scrollHeight;
+
+  askBtn.disabled = true;
+  uploadBtn.disabled = true;
+  analyseBtn.disabled = true;
+  setStatus("Thinking");
+
+  try {
+    const selectedNames = selectedUploads.map((f) => f.name).join(", ");
+
+    const prompt = [
+      "CANARY TRANSCRIPT QUERY",
+      `Use only these selected transcripts: ${selectedNames}`,
+      "",
+      "Answer the user's question using only the selected transcripts.",
+      "If asked for quotes, pull out short direct quotes where available.",
+      "If a person is mentioned, attribute what they said only if the transcript supports it.",
+      "If the answer is not supported by the selected transcripts, say: NOT IN SELECTED TRANSCRIPTS.",
+      "",
+      `User question: ${q}`
+    ].join("\n");
+
+    const resp = await fetch(`${API_BASE}/api/ask`, {
+      method: "POST",
+      headers: headersJson(),
+      body: JSON.stringify({
+        sector: SECTOR,
+        outputFormat: "canary",
+        question: prompt,
+        history
+      })
+    });
+
+    const data = await resp.json().catch(() => ({}));
+
+    if (!resp.ok || data.error) {
+      throw new Error(data.details || data.error || "Question failed");
+    }
+
+    const answer = data.answer || "No answer returned.";
+
+    loadingMsg.querySelector(".canary-msg-body").innerHTML = formatMarkdownToHtml(answer);
+
+    history = [
+      ...history,
+      { role: "user", content: q },
+      { role: "assistant", content: answer }
+    ].slice(-12);
+
+    setStatus("Done");
+  } catch (err) {
+    loadingMsg.querySelector(".canary-msg-body").innerHTML =
+      escapeHtml("ERROR: " + (err.message || err));
+    setStatus("Error", true);
+  } finally {
+    askBtn.disabled = false;
+    uploadBtn.disabled = false;
+    analyseBtn.disabled = false;
+  }
+}
+
+async function downloadChatPng(){
+  try {
+    const canvas = await html2canvas(chatEl, {
+      backgroundColor: "#000000",
+      scale: 2,
+      useCORS: true,
+      allowTaint: true
+    });
+
+    const a = document.createElement("a");
+    a.download = `canary-summary-${new Date().toISOString().slice(0,10)}.png`;
+    a.href = canvas.toDataURL("image/png");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (err) {
+    setStatus("Export failed", true);
+    resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+  }
+}
+
   uploadBtn.addEventListener("click", uploadFiles);
 analyseBtn.addEventListener("click", analyse);
+askBtn.addEventListener("click", () => {
+  const q = (qEl.value || "").trim();
+  if (!q) return;
+  qEl.value = "";
+  autoSizeTextarea(qEl);
+  askTranscript(q);
+});
+
+qEl.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
+    askBtn.click();
+  }
+});
+
+exportChatPngBtn.addEventListener("click", downloadChatPng);
+
+mount.querySelectorAll(".canary-prompt").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    qEl.value = btn.getAttribute("data-prompt-template") || "";
+    autoSizeTextarea(qEl);
+    qEl.focus();
+  });
+});
 
 loadLibrary().catch((err) => {
   setStatus("Library load failed", true);

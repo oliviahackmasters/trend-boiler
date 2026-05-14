@@ -94,17 +94,17 @@ function driverSystemInstructions() {
   ].join("\n");
 }
 
-function choirSystemInstructions() {
+function canarySystemInstructions() {
   return [
     "",
-    "CHOIR MODE:",
+    "canary MODE:",
     "Analyse uploaded interview, meeting, workshop, hack and transcript documents.",
     "Use this exact framework:",
     "- X-axis: Known <-> Unknown",
     "- Y-axis: Agreed <-> Contested",
     "",
     "Output sections:",
-    "**Choir Matrix**",
+    "**canary Matrix**",
     "**Evidence signals**",
     "- 4-6 short signals from the transcripts.",
     "- Each signal should capture a distinct theme, tension, repeated phrase, assumption, concern, or weak signal.",
@@ -146,12 +146,12 @@ function augmentScenarioPrompt(question) {
   ].join("\n");
 }
 
-function augmentChoirPrompt(question) {
+function augmentcanaryPrompt(question) {
   return [
-    "Run Choir transcript analysis for this request:",
+    "Run canary transcript analysis for this request:",
     question,
     "",
-    "Follow the Choir Mode structure exactly."
+    "Follow the canary Mode structure exactly."
   ].join("\n");
 }
 
@@ -208,8 +208,8 @@ if (!requireDemoToken(req, res)) return;
     console.log(`ASK sector=${sector} vsid=${vsid} docs=${docCount} question=${question.slice(0,200)}`);
 
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-    const route = body.outputFormat === "choir"
-    ? { outputFormat: "choir" }
+    const route = body.outputFormat === "canary"
+    ? { outputFormat: "canary" }
     : routeUserQuery(question);
 
     const systemParts = [
@@ -230,13 +230,13 @@ if (!requireDemoToken(req, res)) return;
       systemParts.push(driverSystemInstructions());
     }
 
-    if (route.outputFormat === "choir") {
-      systemParts.push(choirSystemInstructions());
+    if (route.outputFormat === "canary") {
+      systemParts.push(canarySystemInstructions());
     }
 
     const system = systemParts.join("\n");
-    const userPrompt = route.outputFormat === "choir"
-    ? augmentChoirPrompt(question)
+    const userPrompt = route.outputFormat === "canary"
+    ? augmentcanaryPrompt(question)
     : route.outputFormat === "scenario"
       ? augmentScenarioPrompt(question)
       : route.outputFormat === "drivers"
@@ -255,7 +255,7 @@ if (!requireDemoToken(req, res)) return;
       tools: [{ type: "file_search", vector_store_ids: [vsid] }],
       max_output_tokens:
         route.outputFormat === "scenario" ? 2200 :
-        route.outputFormat === "choir" ? 1800 :
+        route.outputFormat === "canary" ? 1800 :
         route.outputFormat === "drivers" ? 1800 :
         1500
     });

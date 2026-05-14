@@ -1,14 +1,14 @@
-<!-- Choir Transcript Analysis Embed -->
+<!-- canary Transcript Analysis Embed -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<div id="hmChoir"></div>
+<div id="hmcanary"></div>
 
 <style>
   :root{ --hm-black:#000000; --hm-white:#FFFFFF; --hm-copper:#D18057; }
-  #hmChoir *{ box-sizing:border-box; }
-  #hmChoir .choir-wrap{
+  #hmcanary *{ box-sizing:border-box; }
+  #hmcanary .canary-wrap{
     font-family:"Montserrat",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
     background:var(--hm-black);
     color:var(--hm-white);
@@ -16,73 +16,73 @@
     padding:18px;
     letter-spacing:.2px;
   }
-  #hmChoir .choir-title{ display:flex; align-items:center; gap:12px; margin:0 0 10px; }
+  #hmcanary .canary-title{ display:flex; align-items:center; gap:12px; margin:0 0 10px; }
 
 
-  #hmChoir .choir-kicker{ color:var(--hm-copper); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; margin:0 0 3px; }
-  #hmChoir h2{ margin:0; font-size:24px; line-height:1.1; text-transform:uppercase; letter-spacing:1.2px; }
-  #hmChoir .choir-sub{ margin:0 0 14px; color:rgba(255,255,255,.82); font-size:12px; line-height:1.55; }
-  #hmChoir .choir-note{ border:1px solid rgba(209,128,87,.45); padding:10px; margin:10px 0 14px; color:rgba(255,255,255,.78); font-size:11px; line-height:1.5; }
-  #hmChoir .choir-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0; }
-  #hmChoir .choir-file{ flex:1 1 260px; min-width:220px; border:1px solid var(--hm-copper); padding:10px 12px; color:rgba(255,255,255,.85); background:transparent; font-size:12px; }
-  #hmChoir input[type="file"]::file-selector-button{ border:1px solid var(--hm-copper); background:transparent; color:var(--hm-white); padding:8px 10px; text-transform:uppercase; letter-spacing:1px; font-weight:600; cursor:pointer; margin-right:10px; }
-  #hmChoir input[type="file"]::file-selector-button:hover, #hmChoir .choir-btn:hover{ background:var(--hm-copper); color:var(--hm-black); }
-  #hmChoir .choir-btn{ appearance:none; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:10px 12px; cursor:pointer; text-transform:uppercase; letter-spacing:1.1px; font-weight:600; font-size:12px; height:44px; }
-  #hmChoir .choir-btn:disabled{ opacity:.55; cursor:not-allowed; }
-  #hmChoir .choir-status{ margin-left:auto; font-size:12px; text-transform:uppercase; letter-spacing:.9px; color:rgba(255,255,255,.85); }
-  #hmChoir .choir-status.is-error{ color:var(--hm-copper); }
-  #hmChoir .choir-divider{ height:1px; background:rgba(209,128,87,.45); margin:14px 0; }
-  #hmChoir .choir-results{ border:1px solid var(--hm-copper); background:rgba(255,255,255,.02); padding:12px; min-height:160px; max-height:720px; overflow:auto; font-size:13px; line-height:1.6; }
-  #hmChoir .choir-results p{ margin:0 0 10px; }
-  #hmChoir .choir-results strong{ color:var(--hm-copper); text-transform:uppercase; letter-spacing:.9px; }
-  #hmChoir .choir-results ul{ margin:8px 0 12px 18px; padding:0; }
-  #hmChoir .choir-results li{ margin:5px 0; }
-  #hmChoir .choir-table-wrap{ width:100%; overflow-x:auto; margin:10px 0 12px; }
-  #hmChoir table{ width:100%; min-width:620px; border-collapse:collapse; border:1px solid rgba(209,128,87,.55); color:rgba(255,255,255,.92); font-size:12px; line-height:1.45; }
-  #hmChoir th,#hmChoir td{ border:1px solid rgba(209,128,87,.42); padding:9px 10px; vertical-align:top; text-align:left; }
-  #hmChoir th{ color:var(--hm-copper); background:rgba(209,128,87,.1); text-transform:uppercase; letter-spacing:.8px; }
-  #hmChoir .choir-textarea{ width:100%; min-height:92px; resize:vertical; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:12px; outline:none; font-size:13px; line-height:1.45; }
-  #hmChoir .choir-textarea::placeholder{ color:rgba(255,255,255,.62); }
+  #hmcanary .canary-kicker{ color:var(--hm-copper); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; margin:0 0 3px; }
+  #hmcanary h2{ margin:0; font-size:24px; line-height:1.1; text-transform:uppercase; letter-spacing:1.2px; }
+  #hmcanary .canary-sub{ margin:0 0 14px; color:rgba(255,255,255,.82); font-size:12px; line-height:1.55; }
+  #hmcanary .canary-note{ border:1px solid rgba(209,128,87,.45); padding:10px; margin:10px 0 14px; color:rgba(255,255,255,.78); font-size:11px; line-height:1.5; }
+  #hmcanary .canary-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+  #hmcanary .canary-file{ flex:1 1 260px; min-width:220px; border:1px solid var(--hm-copper); padding:10px 12px; color:rgba(255,255,255,.85); background:transparent; font-size:12px; }
+  #hmcanary input[type="file"]::file-selector-button{ border:1px solid var(--hm-copper); background:transparent; color:var(--hm-white); padding:8px 10px; text-transform:uppercase; letter-spacing:1px; font-weight:600; cursor:pointer; margin-right:10px; }
+  #hmcanary input[type="file"]::file-selector-button:hover, #hmcanary .canary-btn:hover{ background:var(--hm-copper); color:var(--hm-black); }
+  #hmcanary .canary-btn{ appearance:none; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:10px 12px; cursor:pointer; text-transform:uppercase; letter-spacing:1.1px; font-weight:600; font-size:12px; height:44px; }
+  #hmcanary .canary-btn:disabled{ opacity:.55; cursor:not-allowed; }
+  #hmcanary .canary-status{ margin-left:auto; font-size:12px; text-transform:uppercase; letter-spacing:.9px; color:rgba(255,255,255,.85); }
+  #hmcanary .canary-status.is-error{ color:var(--hm-copper); }
+  #hmcanary .canary-divider{ height:1px; background:rgba(209,128,87,.45); margin:14px 0; }
+  #hmcanary .canary-results{ border:1px solid var(--hm-copper); background:rgba(255,255,255,.02); padding:12px; min-height:160px; max-height:720px; overflow:auto; font-size:13px; line-height:1.6; }
+  #hmcanary .canary-results p{ margin:0 0 10px; }
+  #hmcanary .canary-results strong{ color:var(--hm-copper); text-transform:uppercase; letter-spacing:.9px; }
+  #hmcanary .canary-results ul{ margin:8px 0 12px 18px; padding:0; }
+  #hmcanary .canary-results li{ margin:5px 0; }
+  #hmcanary .canary-table-wrap{ width:100%; overflow-x:auto; margin:10px 0 12px; }
+  #hmcanary table{ width:100%; min-width:620px; border-collapse:collapse; border:1px solid rgba(209,128,87,.55); color:rgba(255,255,255,.92); font-size:12px; line-height:1.45; }
+  #hmcanary th,#hmcanary td{ border:1px solid rgba(209,128,87,.42); padding:9px 10px; vertical-align:top; text-align:left; }
+  #hmcanary th{ color:var(--hm-copper); background:rgba(209,128,87,.1); text-transform:uppercase; letter-spacing:.8px; }
+  #hmcanary .canary-textarea{ width:100%; min-height:92px; resize:vertical; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:12px; outline:none; font-size:13px; line-height:1.45; }
+  #hmcanary .canary-textarea::placeholder{ color:rgba(255,255,255,.62); }
 </style>
 
 <script>
 (() => {
   const API_BASE = "https://trend-report-platform.vercel.app";
   const DEMO_TOKEN = "";
-  const SECTOR = "choir";
+  const SECTOR = "canary";
 
-  const mount = document.getElementById("hmChoir");
+  const mount = document.getElementById("hmcanary");
   mount.innerHTML = `
-    <div class="choir-wrap">
-      <div class="choir-title">
+    <div class="canary-wrap">
+      <div class="canary-title">
         <div>
-          <h2>Choir</h2>
+          <h2>canary</h2>
         </div>
       </div>
-      <p class="choir-sub">Upload interview, meeting or hack transcript PDFs and generate a Known / Unknown x Agreed / Contested theme matrix.</p>
-      <div class="choir-note"><strong>Confidentiality note:</strong> Choir uses a separate vector store via <code>VECTOR_STORE_ID_CHOIR</code>. Do not use for sensitive transcripts until storage retention, access and deletion policies are approved.</div>
-      <div class="choir-row">
-        <input class="choir-file" type="file" id="choirFiles" accept="application/pdf" multiple />
-        <button class="choir-btn" id="choirUpload">Upload transcripts</button>
-        <button class="choir-btn" id="choirAnalyse">Analyse</button>
-        <div class="choir-status" id="choirStatus">Ready</div>
+      <p class="canary-sub">Upload interview, meeting or hack transcript PDFs and generate a Known / Unknown x Agreed / Contested theme matrix.</p>
+      <div class="canary-note"><strong>Confidentiality note:</strong> canary uses a separate vector store via <code>VECTOR_STORE_ID_canary</code>. Do not use for sensitive transcripts until storage retention, access and deletion policies are approved.</div>
+      <div class="canary-row">
+        <input class="canary-file" type="file" id="canaryFiles" accept="application/pdf" multiple />
+        <button class="canary-btn" id="canaryUpload">Upload transcripts</button>
+        <button class="canary-btn" id="canaryAnalyse">Analyse</button>
+        <div class="canary-status" id="canaryStatus">Ready</div>
       </div>
-      <textarea class="choir-textarea" id="choirContext" placeholder="Optional: add project context, research question, audience, or decision this should inform..."></textarea>
-      <div class="choir-divider"></div>
-      <div class="choir-results" id="choirResults">Upload transcript PDFs, then select Analyse.</div>
+      <textarea class="canary-textarea" id="canaryContext" placeholder="Optional: add project context, research question, audience, or decision this should inform..."></textarea>
+      <div class="canary-divider"></div>
+      <div class="canary-results" id="canaryResults">Upload transcript PDFs, then select Analyse.</div>
     </div>
   `;
 
-  const statusEl = mount.querySelector("#choirStatus");
-  const filesEl = mount.querySelector("#choirFiles");
-  const uploadBtn = mount.querySelector("#choirUpload");
-  const analyseBtn = mount.querySelector("#choirAnalyse");
-  const contextEl = mount.querySelector("#choirContext");
-  const resultsEl = mount.querySelector("#choirResults");
+  const statusEl = mount.querySelector("#canaryStatus");
+  const filesEl = mount.querySelector("#canaryFiles");
+  const uploadBtn = mount.querySelector("#canaryUpload");
+  const analyseBtn = mount.querySelector("#canaryAnalyse");
+  const contextEl = mount.querySelector("#canaryContext");
+  const resultsEl = mount.querySelector("#canaryResults");
 
   let uploaded = [];
-  let sessionToken = localStorage.getItem("hm_choir_sessionToken") || crypto.randomUUID();
-  localStorage.setItem("hm_choir_sessionToken", sessionToken);
+  let sessionToken = localStorage.getItem("hm_canary_sessionToken") || crypto.randomUUID();
+  localStorage.setItem("hm_canary_sessionToken", sessionToken);
 
   function setStatus(text, isError=false){
     statusEl.textContent = text || "";
@@ -132,7 +132,7 @@
           .join("");
         return `<tr>${cells}</tr>`;
       }).join("");
-      return `<div class="choir-table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+      return `<div class="canary-table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
     });
     return html;
   }
@@ -151,7 +151,7 @@
     const ingestResp = await fetch(`${API_BASE}/api/ingest`, {
       method:"POST",
       headers:headersJson(),
-      body:JSON.stringify({ sector:SECTOR, blobUrl:uploadData.blobUrl || uploadData.url || uploadData.publicUrl, filename:file.name, size:file.size, tags:{ company:"Choir", topics:["Transcript", "Interview"] } })
+      body:JSON.stringify({ sector:SECTOR, blobUrl:uploadData.blobUrl || uploadData.url || uploadData.publicUrl, filename:file.name, size:file.size, tags:{ company:"canary", topics:["Transcript", "Interview"] } })
     });
     const ingestData = await ingestResp.json().catch(() => ({}));
     if (!ingestResp.ok || ingestData.error) throw new Error(ingestData.details || ingestData.error || `Ingest failed for ${file.name}`);
@@ -168,7 +168,7 @@
         setStatus(`Uploading ${i + 1}/${files.length}`);
         uploaded.push(await uploadOne(files[i]));
       }
-      resultsEl.innerHTML = `<p><strong>Uploaded</strong></p><ul>${uploaded.map(f => `<li>${escapeHtml(f.name)}${f.duplicate ? " — already in Choir" : ""}</li>`).join("")}</ul>`;
+      resultsEl.innerHTML = `<p><strong>Uploaded</strong></p><ul>${uploaded.map(f => `<li>${escapeHtml(f.name)}${f.duplicate ? " — already in canary" : ""}</li>`).join("")}</ul>`;
       setStatus("Uploaded");
     } catch (err) {
       setStatus("Upload failed", true);
@@ -185,7 +185,7 @@
     try {
       const context = contextEl.value.trim();
       const question = [
-        "CHOIR ANALYSIS REQUEST",
+        "canary ANALYSIS REQUEST",
         "Analyse the uploaded interviews, meetings, hacks and transcripts.",
         context ? `Project context: ${context}` : "",
         "Output a 2x2 matrix in bullet points.",
@@ -197,7 +197,7 @@
       const resp = await fetch(`${API_BASE}/api/ask`, {
         method:"POST",
         headers:headersJson(),
-        body:JSON.stringify({ sector:SECTOR, outputFormat:"choir", question, history:[] })
+        body:JSON.stringify({ sector:SECTOR, outputFormat:"canary", question, history:[] })
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || data.error) throw new Error(data.details || data.error || "Analysis failed");

@@ -314,6 +314,11 @@
   display:none !important;
 }
 
+#hmcanary .canary-chat.is-exporting{
+  max-height:none !important;
+  overflow:visible !important;
+}
+
 </style>
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 <script>
@@ -873,13 +878,20 @@ async function uploadFiles(){
 }
 
 async function downloadChatPng(){
-  const previousMaxHeight = chatEl.style.maxHeight;
-  const previousOverflow = chatEl.style.overflow;
-  const previousHeight = chatEl.style.height;
+  const messages = Array.from(chatEl.querySelectorAll(".canary-msg"));
+
+  if (!messages.length) {
+    setStatus("Nothing to export", true);
+    return;
+  }
+
+  const previousChatMaxHeight = chatEl.style.maxHeight;
+  const previousChatOverflow = chatEl.style.overflow;
+  const previousChatHeight = chatEl.style.height;
   const previousScrollTop = chatEl.scrollTop;
 
   try {
-    // Expand chat so html2canvas captures the full conversation, not just visible scroll area.
+    chatEl.classList.add("is-exporting");
     chatEl.style.maxHeight = "none";
     chatEl.style.overflow = "visible";
     chatEl.style.height = "auto";
@@ -887,31 +899,92 @@ async function downloadChatPng(){
 
     await new Promise(resolve => requestAnimationFrame(resolve));
 
-    const canvas = await html2canvas(chatEl, {
-      backgroundColor: "#000000",
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      windowWidth: chatEl.scrollWidth,
-      windowHeight: chatEl.scrollHeight,
-      height: chatEl.scrollHeight
-    });
+    const pairs = [];
 
-    const a = document.createElement("a");
-    a.download = `canary-summary-${new Date().toISOString().slice(0,10)}.png`;
-    a.href = canvas.toDataURL("image/png");
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    for (let i = 0; i < messages.length; i++) {
+      const current = messages[i];
+
+      if (!current.classList.contains("canary-me")) continue;
+
+      const next = messages[i + 1];
+
+      if (next && next.classList.contains("canary-ai")) {
+        pairs.push([current, next]);
+        i++;
+      } else {
+        pairs.push([current]);
+      }
+    }
+
+    if (!pairs.length) {
+      setStatus("Nothing to export", true);
+      return;
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+
+    for (let i = 0; i < pairs.length; i++) {
+      const pair = pairs[i];
+
+      const exportWrap = document.createElement("div");
+      exportWrap.style.background = "#000000";
+      exportWrap.style.color = "#FFFFFF";
+      exportWrap.style.padding = "12px";
+      exportWrap.style.width = `${chatEl.offsetWidth || 1000}px`;
+      exportWrap.style.boxSizing = "border-box";
+      exportWrap.style.fontFamily = `"Montserrat", system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+
+      pair.forEach((message) => {
+        const clone = message.cloneNode(true);
+        clone.style.margin = "0 0 10px 0";
+        clone.style.width = "100%";
+        exportWrap.appendChild(clone);
+      });
+
+      exportWrap.style.position = "absolute";
+      exportWrap.style.left = "-10000px";
+      exportWrap.style.top = "0";
+      exportWrap.style.zIndex = "-1";
+      mount.appendChild(exportWrap);
+
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
+      const canvas = await html2canvas(exportWrap, {
+        backgroundColor: "#000000",
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        width: exportWrap.scrollWidth,
+        height: exportWrap.scrollHeight,
+        windowWidth: exportWrap.scrollWidth,
+        windowHeight: exportWrap.scrollHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
+
+      const a = document.createElement("a");
+      a.download = `canary-summary-${date}-turn-${i + 1}-of-${pairs.length}.png`;
+      a.href = canvas.toDataURL("image/png");
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      exportWrap.remove();
+
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+
+    setStatus("Exported");
 
   } catch (err) {
     setStatus("Export failed", true);
     showError(err);
 
   } finally {
-    chatEl.style.maxHeight = previousMaxHeight;
-    chatEl.style.overflow = previousOverflow;
-    chatEl.style.height = previousHeight;
+    chatEl.classList.remove("is-exporting");
+    chatEl.style.maxHeight = previousChatMaxHeight;
+    chatEl.style.overflow = previousChatOverflow;
+    chatEl.style.height = previousChatHeight;
     chatEl.scrollTop = previousScrollTop;
   }
 }

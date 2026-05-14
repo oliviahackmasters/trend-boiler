@@ -292,7 +292,12 @@ function renderLibrary() {
     });
     const ingestData = await ingestResp.json().catch(() => ({}));
     if (!ingestResp.ok || ingestData.error) throw new Error(ingestData.details || ingestData.error || `Ingest failed for ${file.name}`);
-    return { name:file.name, duplicate:!!ingestData.duplicate };
+    return {
+      id: ingestData.metaKey || ingestData.key,
+      key: ingestData.metaKey || ingestData.key,
+      name: ingestData.filename || file.name,
+      duplicate: !!ingestData.duplicate
+    };
   }
 
 async function uploadFiles(){

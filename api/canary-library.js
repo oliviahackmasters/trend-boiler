@@ -40,29 +40,53 @@ async function buildLibrary() {
   const state = await readState();
   const objects = await listObjects(META_PREFIX);
 
-  const items = objects
+  const metaObjects = objects
     .filter((object) => object.key)
-    .filter((object) => object.key.endsWith(".json"))
     .filter((object) => object.key !== STATE_KEY)
-    .filter((object) => !state.deletedById[object.key])
-    .map((object) => ({
-      id: object.key,
-      key: object.key,
-      name: filenameFromKey(object.key),
-      selected: state.selectedById[object.key] !== false,
-      addedAt: object.uploadedAt
-        ? new Date(object.uploadedAt).toLocaleString()
-        : "",
-      size: object.size || 0,
-      url: object.url
-    }))
-    .sort((a, b) => {
+    .filter((object) => !state.deletedById[object.key]);
+
+  const items = await Promise.all(
+    metaObjects.map(async (object) => {
+      let meta = {};
+
+      try {
+        meta = await getJson(object.key);
+      } catch {
+        meta = {};
+      }
+
+      const name =
+        meta.filename ||
+        meta.name ||
+        meta.title ||
+        meta.originalFilename ||
+        object.key.split("/").pop();
+
+      return {
+        id: object.key,
+        key: object.key,
+        name,
+        selected: state.selectedById[object.key] !== false,
+        addedAt: meta.addedAt
+          ? new Date(meta.addedAt).toLocaleString()
+          : object.uploadedAt
+            ? new Date(object.uploadedAt).toLocaleString()
+            : "",
+        size: meta.size || object.size || 0,
+        url: meta.blobUrl || meta.url || meta.publicUrl || object.url,
+        hash: meta.hash || ""
+      };
+    })
+  );
+
+  return {
+    items: items.sort((a, b) => {
       const aTime = a.addedAt ? new Date(a.addedAt).getTime() : 0;
       const bTime = b.addedAt ? new Date(b.addedAt).getTime() : 0;
       return bTime - aTime;
-    });
-
-  return { items, state };
+    }),
+    state
+  };
 }
 
 export default async function handler(req, res) {
@@ -108,19 +132,19 @@ export default async function handler(req, res) {
       return json(res, 200, { items });
     }
 
-    if (action === "add") {
-      const item = body.item || {};
-      const idFromItem = String(item.id || item.key || "");
+if (action === "add") {
+  const item = body.item || {};
+  const idFromItem = String(item.key || item.id || "");
 
-      if (idFromItem) {
-        state.selectedById[idFromItem] = item.selected !== false;
-        delete state.deletedById[idFromItem];
-        await writeState(state);
-      }
+  if (idFromItem) {
+    state.selectedById[idFromItem] = item.selected !== false;
+    delete state.deletedById[idFromItem];
+    await writeState(state);
+  }
 
-      const { items } = await buildLibrary();
-      return json(res, 200, { items });
-    }
+  const { items } = await buildLibrary();
+  return json(res, 200, { items });
+}
 
     return json(res, 400, { error: "Unknown action." });
   } catch (err) {

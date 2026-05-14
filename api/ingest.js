@@ -301,7 +301,14 @@ export default async function handler(req, res) {
       const existing = await listObjects(key);
       if (existing.length) {
         console.log(`INGEST DUPLICATE sector=${sector} key=${key} hash=${hash}`);
-        return json(res, 200, { ok: true, duplicate: true, hash });
+        return json(res, 200, {
+          ok: true,
+          duplicate: true,
+          hash,
+          key,
+          metaKey: key,
+          filename
+        });
       }
     }
 
@@ -370,7 +377,15 @@ export default async function handler(req, res) {
     await putJson(metaKey, meta);
     console.log(`INGEST COMPLETE sector=${sector} metaKey=${metaKey} vsFileId=${vsFile?.id}`);
 
-    return json(res, 200, { ok: true, hash, duplicate: false, tags: finalTags });
+    return json(res, 200, {
+      ok: true,
+      hash,
+      duplicate: false,
+      tags: finalTags,
+      key: metaKey,
+      metaKey,
+      filename
+    });
   } catch (e) {
     console.error("INGEST FAILED", e);
     return json(res, 500, { error: "INGEST FAILED", details: String(e?.message || e) });

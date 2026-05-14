@@ -130,7 +130,13 @@
   const resultsEl = mount.querySelector("#canaryResults");
   const libraryEl = mount.querySelector("#canaryLibrary");
 
-  let uploaded = [];
+const LIBRARY_KEY = "hm_canary_library";
+
+let uploaded = JSON.parse(localStorage.getItem(LIBRARY_KEY) || "[]");
+
+function saveLibrary() {
+  localStorage.setItem(LIBRARY_KEY, JSON.stringify(uploaded));
+}
 
   function renderLibrary() {
   const selectedCount = uploaded.filter((f) => f.selected !== false).length;
@@ -166,6 +172,7 @@
     button.addEventListener("click", () => {
       const index = Number(button.dataset.index);
       uploaded[index].selected = uploaded[index].selected === false;
+      saveLibrary();
       renderLibrary();
     });
   });
@@ -174,6 +181,7 @@
     button.addEventListener("click", () => {
       const index = Number(button.dataset.index);
       uploaded.splice(index, 1);
+      saveLibrary();
       renderLibrary();
     });
   });
@@ -256,32 +264,37 @@
     return { name:file.name, duplicate:!!ingestData.duplicate };
   }
 
-  async function uploadFiles(){
-    const files = Array.from(filesEl.files || []);
-    if (!files.length) { setStatus("Choose PDFs", true); return; }
-    uploadBtn.disabled = true; analyseBtn.disabled = true;
-    try {
-      uploaded = [];
-      for (let i = 0; i < files.length; i++) {
-        setStatus(`Uploading ${i + 1}/${files.length}`);
-        const uploadedFile = await uploadOne(files[i]);
-          uploaded.push({
-            ...uploadedFile,
-            selected: true,
-            addedAt: new Date().toLocaleString()
-          });
-          renderLibrary();
-      }
-      resultsEl.innerHTML = `<p><strong>Uploaded</strong></p><ul>${uploaded.map(f => `<li>${escapeHtml(f.name)}${f.duplicate ? " — already in canary" : ""}</li>`).join("")}</ul>`;
-      setStatus("Uploaded");
-      
-    } catch (err) {
-      setStatus("Upload failed", true);
-      resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
-    } finally {
-      uploadBtn.disabled = false; analyseBtn.disabled = false;
+async function uploadFiles(){
+  const files = Array.from(filesEl.files || []);
+  if (!files.length) { setStatus("Choose PDFs", true); return; }
+  uploadBtn.disabled = true; analyseBtn.disabled = true;
+
+  try {
+    for (let i = 0; i < files.length; i++) {
+      setStatus(`Uploading ${i + 1}/${files.length}`);
+      const uploadedFile = await uploadOne(files[i]);
+
+      uploaded.push({
+        ...uploadedFile,
+        selected: true,
+        addedAt: new Date().toLocaleString()
+      });
+
+      saveLibrary();
+      renderLibrary();
     }
+
+    resultsEl.innerHTML = `<p><strong>Uploaded</strong></p><ul>${uploaded.map(f => `<li>${escapeHtml(f.name)}${f.duplicate ? " — already in canary" : ""}</li>`).join("")}</ul>`;
+    setStatus("Uploaded");
+
+  } catch (err) {
+    setStatus("Upload failed", true);
+    resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
+  } finally {
+    uploadBtn.disabled = false;
+    analyseBtn.disabled = false;
   }
+}
 
   async function analyse(){
     analyseBtn.disabled = true; uploadBtn.disabled = true;
@@ -290,6 +303,8 @@
 
     if (!selectedUploads.length) {
       setStatus("Select at least one transcript", true);
+      analyseBtn.disabled = false;
+      uploadBtn.disabled = false;
       return;
     }
     resultsEl.innerHTML = "<p><strong>Analysing transcripts...</strong></p>";

@@ -43,6 +43,53 @@
   #hmcanary th{ color:var(--hm-copper); background:rgba(209,128,87,.1); text-transform:uppercase; letter-spacing:.8px; }
   #hmcanary .canary-textarea{ width:100%; min-height:92px; resize:vertical; background:transparent; color:var(--hm-white); border:1px solid var(--hm-copper); padding:12px; outline:none; font-size:13px; line-height:1.45; }
   #hmcanary .canary-textarea::placeholder{ color:rgba(255,255,255,.62); }
+  #hmcanary .canary-library{
+  border:1px solid var(--hm-copper);
+  background:rgba(255,255,255,.02);
+  padding:12px;
+  margin:12px 0;
+}
+
+#hmcanary .canary-library-title{
+  color:var(--hm-copper);
+  font-size:12px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:1.1px;
+  margin-bottom:10px;
+}
+
+#hmcanary .canary-library-item{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  border-top:1px solid rgba(209,128,87,.45);
+  padding:12px 0;
+}
+
+#hmcanary .canary-library-item:first-of-type{
+  border-top:0;
+}
+
+#hmcanary .canary-library-meta{
+  font-size:12px;
+  line-height:1.55;
+}
+
+#hmcanary .canary-library-actions{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+}
+
+#hmcanary .canary-select-toggle{
+  min-width:112px;
+}
+
+#hmcanary .canary-library-empty{
+  color:rgba(255,255,255,.72);
+  font-size:12px;
+}
 </style>
 
 <script>
@@ -67,6 +114,8 @@
         <button class="canary-btn" id="canaryAnalyse">Analyse</button>
         <div class="canary-status" id="canaryStatus">Ready</div>
       </div>
+      <div class="canary-divider"></div>
+      <div class="canary-library" id="canaryLibrary"></div>
       <textarea class="canary-textarea" id="canaryContext" placeholder="Optional: add project context, research question, audience, or decision this should inform..."></textarea>
       <div class="canary-divider"></div>
       <div class="canary-results" id="canaryResults">Upload transcript PDFs, then select Analyse.</div>
@@ -79,8 +128,57 @@
   const analyseBtn = mount.querySelector("#canaryAnalyse");
   const contextEl = mount.querySelector("#canaryContext");
   const resultsEl = mount.querySelector("#canaryResults");
+  const libraryEl = mount.querySelector("#canaryLibrary");
 
   let uploaded = [];
+
+  function renderLibrary() {
+  const selectedCount = uploaded.filter((f) => f.selected !== false).length;
+
+  libraryEl.innerHTML = `
+    <div class="canary-library-title">
+      LIBRARY (${uploaded.length}) — ${selectedCount} SELECTED
+    </div>
+    ${
+      uploaded.length
+        ? uploaded.map((file, index) => `
+          <div class="canary-library-item">
+            <div class="canary-library-meta">
+              <strong>${escapeHtml(file.name)}</strong>
+              <div>TYPE: TRANSCRIPT</div>
+              <div>ADDED: ${escapeHtml(file.addedAt || "")}</div>
+            </div>
+            <div class="canary-library-actions">
+              <button class="canary-btn canary-select-toggle" data-index="${index}">
+                ${file.selected === false ? "DESELECTED" : "SELECTED"}
+              </button>
+              <button class="canary-btn canary-delete" data-index="${index}">
+                DELETE
+              </button>
+            </div>
+          </div>
+        `).join("")
+        : `<div class="canary-library-empty">No transcripts uploaded yet.</div>`
+    }
+  `;
+
+  libraryEl.querySelectorAll(".canary-select-toggle").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.index);
+      uploaded[index].selected = uploaded[index].selected === false;
+      renderLibrary();
+    });
+  });
+
+  libraryEl.querySelectorAll(".canary-delete").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.index);
+      uploaded.splice(index, 1);
+      renderLibrary();
+    });
+  });
+}
+
   let sessionToken = localStorage.getItem("hm_canary_sessionToken") || crypto.randomUUID();
   localStorage.setItem("hm_canary_sessionToken", sessionToken);
 
@@ -166,10 +264,17 @@
       uploaded = [];
       for (let i = 0; i < files.length; i++) {
         setStatus(`Uploading ${i + 1}/${files.length}`);
-        uploaded.push(await uploadOne(files[i]));
+        const uploadedFile = await uploadOne(files[i]);
+          uploaded.push({
+            ...uploadedFile,
+            selected: true,
+            addedAt: new Date().toLocaleString()
+          });
+          renderLibrary();
       }
       resultsEl.innerHTML = `<p><strong>Uploaded</strong></p><ul>${uploaded.map(f => `<li>${escapeHtml(f.name)}${f.duplicate ? " — already in canary" : ""}</li>`).join("")}</ul>`;
       setStatus("Uploaded");
+      
     } catch (err) {
       setStatus("Upload failed", true);
       resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
@@ -181,12 +286,19 @@
   async function analyse(){
     analyseBtn.disabled = true; uploadBtn.disabled = true;
     setStatus("Analysing");
+    const selectedUploads = uploaded.filter((file) => file.selected !== false);
+
+    if (!selectedUploads.length) {
+      setStatus("Select at least one transcript", true);
+      return;
+    }
     resultsEl.innerHTML = "<p><strong>Analysing transcripts...</strong></p>";
     try {
       const context = contextEl.value.trim();
       const question = [
         "canary ANALYSIS REQUEST",
         "Analyse the uploaded interviews, meetings, hacks and transcripts.",
+        `Use only these selected transcripts: ${selectedUploads.map((f) => f.name).join(", ")}`,
         context ? `Project context: ${context}` : "",
         "Output a 2x2 matrix in bullet points.",
         "X-axis: Known <-> Unknown.",

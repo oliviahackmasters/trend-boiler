@@ -130,9 +130,23 @@
   const resultsEl = mount.querySelector("#canaryResults");
   const libraryEl = mount.querySelector("#canaryLibrary");
 
-const LIBRARY_KEY = "hm_canary_library";
+let uploaded = [];
 
-let uploaded = JSON.parse(localStorage.getItem(LIBRARY_KEY) || "[]");
+async function loadLibrary() {
+  const resp = await fetch(`${API_BASE}/api/canary-library`, {
+    method: "GET",
+    headers: headersJson()
+  });
+
+  const data = await resp.json().catch(() => ({}));
+
+  if (!resp.ok || data.error) {
+    throw new Error(data.details || data.error || "Library load failed");
+  }
+
+  uploaded = Array.isArray(data.items) ? data.items : [];
+  renderLibrary();
+}
 
 function saveLibrary() {
   localStorage.setItem(LIBRARY_KEY, JSON.stringify(uploaded));
@@ -184,6 +198,11 @@ function saveLibrary() {
       saveLibrary();
       renderLibrary();
     });
+  });
+
+  loadLibrary().catch((err) => {
+    setStatus("Library load failed", true);
+    resultsEl.innerHTML = `<p><strong>Error:</strong> ${escapeHtml(err.message || err)}</p>`;
   });
 }
 

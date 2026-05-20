@@ -147,6 +147,7 @@ Rules:
       projectId,
       toolName: "trend-boiler",
       type: "future-map",
+      methodologyTags: ["future-map", "drivers", "signals", "trends", "scenario-planning", "hackmasters-methodology"],
       title: `Future Map: ${theme}`.slice(0, 120),
       summary: summariseOutputForMemory(JSON.stringify(parsed)),
       content: JSON.stringify(parsed, null, 2),

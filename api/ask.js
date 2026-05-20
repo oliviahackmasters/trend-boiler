@@ -92,7 +92,15 @@ if (projectId && useProjectMemory) {
     const route = body.outputFormat === "canary" ? { outputFormat: "canary" } : routeUserQuery(question);
     const toolName = route.outputFormat === "canary" || sector === "canary" ? "canary" : "trend-boiler";
     const systemParts = ["You are a trends research assistant.", `Answer using ONLY the uploaded documents and saved web sources in the "${sector}" sector when possible.`, "If the answer is not in the library, say: NOT IN DOCUMENTS, then suggest what to upload or add by URL.", "Provide sources or evidence from the library when possible.", "Keep answers structured and concise.", "Use british english spelling and grammar.", "Explore non-sustainability related themes and/or trends unless specifically prompted to do so."];
-    if (projectMemoryContext) systemParts.push(["", "PROJECT MEMORY:", "Use the following saved project memory for continuity and context. Do not treat it as document evidence and do not cite it as a source.", projectMemoryContext, "END PROJECT MEMORY"].join("\n"));
+  if (projectMemoryContext) {
+  systemParts.push([
+    "",
+    "SHARED PROJECT CONTEXT:",
+    "Use this for continuity, client/project background and Hackmasters methodology. Do not treat project memory as document evidence and do not cite it as a source.",
+    projectMemoryContext,
+    "END SHARED PROJECT CONTEXT",
+  ].join("\n"));
+}
     if (route.outputFormat === "scenario") systemParts.push(scenarioSystemInstructions());
     if (route.outputFormat === "drivers") systemParts.push(driverSystemInstructions());
     if (route.outputFormat === "canary") systemParts.push(canarySystemInstructions());

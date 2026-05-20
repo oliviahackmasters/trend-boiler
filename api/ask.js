@@ -2,7 +2,14 @@ import { listObjects } from "../lib/r2.js";
 import { openai } from "../lib/openaiClient.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
 import { getVectorStoreIdForSector } from "../lib/vs.js";
-import { buildProjectMemoryContext, getProjectMemory, isProjectMemoryConfigured, saveProjectMemoryItem, summariseOutputForMemory, upsertProject } from "../lib/projectMemory.js";
+
+import {
+  buildProjectContext,
+  saveProjectMemory,
+  summariseOutputForMemory,
+} from "../lib/projectMemoryClient.js";
+
+
 
 function json(res, status, payload) { res.statusCode = status; res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(payload)); }
 function routeUserQuery(question) { if (wantsDrivers(question)) return { outputFormat: "drivers" }; return { outputFormat: wantsScenarioMatrix(question) ? "scenario" : "default" }; }
@@ -29,18 +36,53 @@ export default async function handler(req, res) {
     if (!question) return json(res, 400, { error: "Missing question." });
 
     const projectId = body.projectId?.toString?.().trim();
-    const projectName = body.projectName?.toString?.().trim();
     const useProjectMemory = body.useProjectMemory !== false;
     const saveToProjectMemory = body.saveToProjectMemory !== false;
-    let projectMemoryItems = [];
-    let projectMemoryContext = "";
-    let memorySaved = false;
-    let memorySaveError = null;
-    if (projectId && useProjectMemory && isProjectMemoryConfigured()) {
-      await upsertProject(projectId, projectName);
-      projectMemoryItems = await getProjectMemory(projectId);
-      projectMemoryContext = buildProjectMemoryContext(projectMemoryItems);
-    }
+
+
+let projectContext = {
+  contextBlock: "",
+  memoryItemsUsed: 0,
+  contextItemsUsed: 0,
+  methodologyItemsUsed: 0,
+};
+
+let projectMemoryContext = "";
+let memorySaved = false;
+let memorySaveError = null;
+let projectContextError = null;
+
+if (projectId && useProjectMemory) {
+  try {
+    const routePreview = body.outputFormat === "canary"
+      ? { outputFormat: "canary" }
+      : routeUserQuery(question);
+
+    const contextToolName =
+      routePreview.outputFormat === "canary" || sector === "canary"
+        ? "canary"
+        : "trend-boiler";
+
+    const methodologyTags =
+      contextToolName === "canary"
+        ? ["canary", "transcripts", "matrices"]
+        : ["trend-boiler", "trends", "drivers", "signals", "scenario-planning"];
+
+    projectContext = await buildProjectContext({
+      projectId,
+      toolName: contextToolName,
+      task: question,
+      methodologyTags,
+      includeMethodology: true,
+      maxChars: 12000,
+    });
+
+    projectMemoryContext = projectContext.contextBlock || "";
+  } catch (err) {
+    projectContextError = err?.message || String(err);
+    console.error("Failed to load project context:", err);
+  }
+}
 
     let docCount = 0;
     try { const prefixes = sector === "luxury" ? ["trend-library/meta/luxury/", "trend-library/meta/"] : [`trend-library/meta/${sector}/`]; for (const prefix of prefixes) docCount += (await listObjects(prefix)).length; } catch {}
@@ -60,14 +102,56 @@ export default async function handler(req, res) {
     const resp = await openai.responses.create({ model, input, tools: [{ type: "file_search", vector_store_ids: [vsid] }], max_output_tokens: route.outputFormat === "scenario" ? 2200 : route.outputFormat === "canary" ? 1800 : route.outputFormat === "drivers" ? 1800 : 1500 });
     const answer = resp.output_text || "";
 
-    if (projectId && saveToProjectMemory && isProjectMemoryConfigured()) {
-      try {
-        await saveProjectMemoryItem({ projectId, toolName, type: route.outputFormat === "canary" ? "transcript-analysis" : route.outputFormat === "scenario" ? "scenario-output" : route.outputFormat === "drivers" ? "drivers" : "chat-output", title: question.slice(0, 120), summary: summariseOutputForMemory(answer), content: [`QUESTION:\n${question}`, `ANSWER:\n${answer}`].join("\n\n"), metadata: { sector, outputFormat: route.outputFormat, docCount, timestamp: new Date().toISOString() } });
-        memorySaved = true;
-      } catch (err) { memorySaveError = err?.message || String(err); console.error("Failed to save ask project memory:", err); }
-    }
+    if (projectId && saveToProjectMemory) {
+  try {
+    await saveProjectMemory({
+      projectId,
+      toolName,
+      type:
+        route.outputFormat === "canary"
+          ? "transcript-analysis"
+          : route.outputFormat === "scenario"
+            ? "scenario-output"
+            : route.outputFormat === "drivers"
+              ? "drivers"
+              : "chat-output",
+      title: question.slice(0, 120),
+      summary: summariseOutputForMemory(answer),
+      content: [
+        `QUESTION:\n${question}`,
+        `ANSWER:\n${answer}`,
+      ].join("\n\n"),
+      metadata: {
+        sector,
+        outputFormat: route.outputFormat,
+        docCount,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    memorySaved = true;
+  } catch (err) {
+    memorySaveError = err?.message || String(err);
+    console.error("Failed to save ask project memory:", err);
+  }
+}
 
     console.log(`ASK RESULT sector=${sector} format=${route.outputFormat} vsid=${vsid} answerTokens=${(resp?.output_tokens || 0)}`);
-    return json(res, 200, { answer, outputFormat: route.outputFormat, projectMemory: { enabled: Boolean(projectId), configured: isProjectMemoryConfigured(), projectId: projectId || null, memoryItemsLoaded: projectMemoryItems.length, saved: memorySaved, saveError: memorySaveError } });
+    return json(res, 200, {
+  answer,
+  outputFormat: route.outputFormat,
+  projectMemory: {
+    enabled: Boolean(projectId),
+    configured: true,
+    projectId: projectId || null,
+    memoryItemsLoaded: projectContext.memoryItemsUsed || 0,
+    contextItemsLoaded: projectContext.contextItemsUsed || 0,
+    methodologyItemsLoaded: projectContext.methodologyItemsUsed || 0,
+    saved: memorySaved,
+    contextError: projectContextError,
+    saveError: memorySaveError,
+  },
+});
+
   } catch (err) { return json(res, 500, { error: "ASK FAILED", details: String(err?.message || err) }); }
 }

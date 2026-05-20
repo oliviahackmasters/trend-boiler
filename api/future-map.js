@@ -1,7 +1,12 @@
+//future map.js
 import { openai } from "../lib/openaiClient.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
 import { getVectorStoreIdForSector } from "../lib/vs.js";
-
+import {
+  buildProjectContext,
+  saveProjectMemory,
+  summariseOutputForMemory,
+} from "../lib/projectMemoryClient.js";
 
 function json(res, status, payload) {
   res.statusCode = status;
@@ -28,12 +33,53 @@ export default async function handler(req, res) {
 
     if (!theme) return json(res, 400, { error: "Missing theme" });
 
+const projectId = body.projectId?.toString?.().trim();
+const useProjectMemory = body.useProjectMemory !== false;
+const saveToProjectMemory = body.saveToProjectMemory !== false;
+
+let projectContext = {
+  contextBlock: "",
+  memoryItemsUsed: 0,
+  contextItemsUsed: 0,
+  methodologyItemsUsed: 0,
+};
+let projectContextBlock = "";
+let memorySaved = false;
+let memorySaveError = null;
+let projectContextError = null;
+
+if (projectId && useProjectMemory) {
+  try {
+    projectContext = await buildProjectContext({
+      projectId,
+      toolName: "trend-boiler",
+      task: `Build Future Map for: ${theme}`,
+      methodologyTags: ["future-map", "drivers", "signals", "trends", "hackmasters-methodology"],
+      includeMethodology: true,
+      maxChars: 10000,
+    });
+
+    projectContextBlock = projectContext.contextBlock || "";
+  } catch (err) {
+    projectContextError = err?.message || String(err);
+    console.error("Failed to load project context for future map:", err);
+  }
+}
+
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
     // IMPORTANT: keep strict JSON so the frontend can render the map directly.
     // The values remain arrays of strings for backwards compatibility with the SVG renderer.
-    const prompt = `
-You are a senior trends strategist. Use ONLY the reports, documents, and saved web sources in the vector store.
+const prompt = `
+You are a senior trends strategist. Use ONLY the reports, documents, and saved web sources in the vector store as source evidence.
+
+${projectContextBlock ? `SHARED PROJECT CONTEXT
+Use this for continuity, client/project background and Hackmasters methodology. Do not treat project memory as document evidence unless it explicitly contains cited evidence.
+
+${projectContextBlock}
+
+END SHARED PROJECT CONTEXT
+` : ""}
 
 Task: Build a "Future Map" for the theme: "${theme}".
 
@@ -95,7 +141,44 @@ Rules:
       parsed = JSON.parse(m[0]);
     }
 
-    return json(res, 200, parsed);
+    if (projectId && saveToProjectMemory) {
+  try {
+    await saveProjectMemory({
+      projectId,
+      toolName: "trend-boiler",
+      type: "future-map",
+      title: `Future Map: ${theme}`.slice(0, 120),
+      summary: summariseOutputForMemory(JSON.stringify(parsed)),
+      content: JSON.stringify(parsed, null, 2),
+      metadata: {
+        sector,
+        theme,
+        outputFormat: "future-map",
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    memorySaved = true;
+  } catch (err) {
+    memorySaveError = err?.message || String(err);
+    console.error("Failed to save future map project memory:", err);
+  }
+}
+
+    return json(res, 200, {
+  ...parsed,
+  projectMemory: {
+    enabled: Boolean(projectId),
+    configured: true,
+    projectId: projectId || null,
+    memoryItemsLoaded: projectContext.memoryItemsUsed || 0,
+    contextItemsLoaded: projectContext.contextItemsUsed || 0,
+    methodologyItemsLoaded: projectContext.methodologyItemsUsed || 0,
+    saved: memorySaved,
+    contextError: projectContextError,
+    saveError: memorySaveError,
+  },
+});
   } catch (e) {
     return json(res, 500, { error: "FUTURE MAP FAILED", details: String(e?.message || e) });
   }

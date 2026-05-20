@@ -1,7 +1,13 @@
+// drivers.js
 import { listObjects } from "../lib/r2.js";
 import { openai } from "../lib/openaiClient.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
 import { getVectorStoreIdForSector } from "../lib/vs.js";
+import {
+  buildProjectContext,
+  saveProjectMemory,
+  summariseOutputForMemory,
+} from "../lib/projectMemoryClient.js";
 
 function json(res, status, payload) {
   res.statusCode = status;
@@ -121,9 +127,45 @@ export default async function handler(req, res) {
     const topic = String(body.topic || "").trim();
     const history = Array.isArray(body.history) ? body.history : [];
 
+    const projectId = body.projectId?.toString?.().trim();
+const useProjectMemory = body.useProjectMemory !== false;
+const saveToProjectMemory = body.saveToProjectMemory !== false;
+
+
+    
+
     if (!topic) {
       return json(res, 400, { error: "Missing topic parameter. Use 'generate drivers for X'" });
     }
+
+    let projectContext = {
+  contextBlock: "",
+  memoryItemsUsed: 0,
+  contextItemsUsed: 0,
+  methodologyItemsUsed: 0,
+};
+let projectContextBlock = "";
+let memorySaved = false;
+let memorySaveError = null;
+let projectContextError = null;
+
+if (projectId && useProjectMemory) {
+  try {
+    projectContext = await buildProjectContext({
+      projectId,
+      toolName: "trend-boiler",
+      task: `Generate drivers for: ${topic}`,
+      methodologyTags: ["drivers", "trend-boiler", "signals", "scenario-planning", "hackmasters-methodology"],
+      includeMethodology: true,
+      maxChars: 10000,
+    });
+
+    projectContextBlock = projectContext.contextBlock || "";
+  } catch (err) {
+    projectContextError = err?.message || String(err);
+    console.error("Failed to load project context for drivers:", err);
+  }
+}
 
     const vsid = getVectorStoreIdForSector(sector);
     if (!vsid) {
@@ -152,6 +194,16 @@ export default async function handler(req, res) {
     const system = [
       "You are a strategic foresight specialist generating drivers for trend analysis.",
       `Using documents and saved web sources from the "${sector}" sector, generate three categories of drivers for: ${topic}`,
+  ...(projectContextBlock
+    ? [
+        "",
+        "SHARED PROJECT CONTEXT:",
+        "Use this for continuity, client/project background and Hackmasters methodology. Do not treat project memory as document evidence unless it explicitly contains cited evidence.",
+        projectContextBlock,
+        "END SHARED PROJECT CONTEXT",
+        "",
+      ]
+    : []),
       "",
       "PRIMARY DRIVERS (Highly likely, big impact):",
       "- List 3-5 drivers that are very likely to happen and would significantly impact the trend",
@@ -186,29 +238,72 @@ export default async function handler(req, res) {
     const responseText = resp.output_text || "";
     const parsed = parseDriversResponse(responseText);
 
-    console.log(`DRIVERS RESULT sector=${sector} primary=${parsed.primary.length} secondary=${parsed.secondary.length} wildcard=${parsed.wildcard.length}`);
+    let responsePayload = {
+  topic,
+  drivers: {
+    primary: {
+      label: "Primary Drivers",
+      description: "Highly likely, big impact",
+      items: parsed.primary
+    },
+    secondary: {
+      label: "Secondary Drivers",
+      description: "Less likely, relatively big impact",
+      items: parsed.secondary
+    },
+    wildcard: {
+      label: "Wildcard Drivers",
+      description: "Unlikely, but if it happens it would be a big deal",
+      items: parsed.wildcard
+    }
+  },
+  raw_response: responseText
+};
 
-    return json(res, 200, {
-      topic,
-      drivers: {
-        primary: {
-          label: "Primary Drivers",
-          description: "Highly likely, big impact",
-          items: parsed.primary
-        },
-        secondary: {
-          label: "Secondary Drivers",
-          description: "Less likely, relatively big impact",
-          items: parsed.secondary
-        },
-        wildcard: {
-          label: "Wildcard Drivers",
-          description: "Unlikely, but if it happens it would be a big deal",
-          items: parsed.wildcard
-        }
+if (projectId && saveToProjectMemory) {
+  try {
+    await saveProjectMemory({
+      projectId,
+      toolName: "trend-boiler",
+      type: "drivers",
+      title: `Drivers: ${topic}`.slice(0, 120),
+      summary: summariseOutputForMemory(responseText),
+      content: JSON.stringify(responsePayload, null, 2),
+      metadata: {
+        sector,
+        topic,
+        outputFormat: "drivers",
+        docCount,
+        timestamp: new Date().toISOString(),
       },
-      raw_response: responseText
     });
+
+    memorySaved = true;
+  } catch (err) {
+    memorySaveError = err?.message || String(err);
+    console.error("Failed to save drivers project memory:", err);
+  }
+}
+
+responsePayload.projectMemory = {
+  enabled: Boolean(projectId),
+  configured: true,
+  projectId: projectId || null,
+  memoryItemsLoaded: projectContext.memoryItemsUsed || 0,
+  contextItemsLoaded: projectContext.contextItemsUsed || 0,
+  methodologyItemsLoaded: projectContext.methodologyItemsUsed || 0,
+  saved: memorySaved,
+  contextError: projectContextError,
+  saveError: memorySaveError,
+};
+
+console.log(
+  `DRIVERS RESULT sector=${sector} primary=${parsed.primary.length} secondary=${parsed.secondary.length} wildcard=${parsed.wildcard.length}`
+);
+
+return json(res, 200, responsePayload);
+
+   
   } catch (err) {
     return json(res, 500, { error: "DRIVERS FAILED", details: String(err?.message || err) });
   }

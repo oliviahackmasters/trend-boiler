@@ -4,6 +4,14 @@ import { openai } from "../lib/openaiClient.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
 import { getVectorStoreIdForSector } from "../lib/vs.js";
 import {
+  buildSourcePack,
+  getStoredProjectVectorStoreId,
+  isTrendReportSector,
+  listProjectSectorReports,
+  normalizeSector,
+  requireProjectReportScope
+} from "../lib/projectReports.js";
+import {
   buildProjectContext,
   saveProjectMemory,
   summariseOutputForMemory,
@@ -123,13 +131,30 @@ export default async function handler(req, res) {
     }
 
     const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
-    const sector = String(body.sector || "luxury").trim().toLowerCase();
+    const sector = normalizeSector(body.sector || "luxury");
     const topic = String(body.topic || "").trim();
     const history = Array.isArray(body.history) ? body.history : [];
 
-    const projectId = body.projectId?.toString?.().trim();
+    let projectId = body.projectId?.toString?.().trim();
 const useProjectMemory = body.useProjectMemory !== false;
 const saveToProjectMemory = body.saveToProjectMemory !== false;
+    let reports = [];
+    let sourcePack = "";
+    let scopedVectorStoreId = "";
+
+    if (isTrendReportSector(sector)) {
+      const scope = requireProjectReportScope({ projectId, sector });
+      projectId = scope.projectId;
+      reports = await listProjectSectorReports(scope);
+      if (!reports.length) {
+        return json(res, 400, { error: `No reports found for project ${scope.projectId} / sector ${scope.sector}` });
+      }
+      scopedVectorStoreId = await getStoredProjectVectorStoreId(scope);
+      if (!scopedVectorStoreId) {
+        return json(res, 500, { error: `Missing vector store ID for project ${scope.projectId} / sector ${scope.sector}` });
+      }
+      sourcePack = buildSourcePack(reports, scope);
+    }
 
 
     
@@ -167,33 +192,33 @@ if (projectId && useProjectMemory) {
   }
 }
 
-    const vsid = getVectorStoreIdForSector(sector);
+    const vsid = isTrendReportSector(sector)
+      ? scopedVectorStoreId
+      : getVectorStoreIdForSector(sector);
     if (!vsid) {
       return json(res, 500, { error: `Missing vector store ID for sector: ${sector}` });
     }
 
     // Log for debugging
-    let docCount = 0;
-    try {
-      const prefixes = sector === "luxury"
-        ? ["trend-library/meta/luxury/", "trend-library/meta/"]
-        : [`trend-library/meta/${sector}/`];
-
-      for (const prefix of prefixes) {
-        const metas = await listObjects(prefix);
-        docCount += metas.length;
+    let docCount = reports.length;
+    if (!isTrendReportSector(sector)) {
+      try {
+        docCount += (await listObjects(`trend-library/meta/${sector}/`)).length;
+      } catch (e) {
+        // best-effort logging; ignore failures
       }
-    } catch (e) {
-      // best-effort logging; ignore failures
     }
 
-    console.log(`DRIVERS sector=${sector} topic=${topic.slice(0,100)}`);
+    console.log(`DRIVERS project=${projectId || "none"} sector=${sector} topic=${topic.slice(0,100)}`);
 
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
     const system = [
       "You are a strategic foresight specialist generating drivers for trend analysis.",
-      `Using documents and saved web sources from the "${sector}" sector, generate three categories of drivers for: ${topic}`,
+      isTrendReportSector(sector)
+        ? `Using ONLY documents and saved web sources for project "${projectId}" in the "${sector}" sector, generate three categories of drivers for: ${topic}`
+        : `Using documents and saved web sources from the "${sector}" sector, generate three categories of drivers for: ${topic}`,
+      ...(sourcePack ? [sourcePack] : []),
   ...(projectContextBlock
     ? [
         "",
@@ -305,6 +330,8 @@ return json(res, 200, responsePayload);
 
    
   } catch (err) {
-    return json(res, 500, { error: "DRIVERS FAILED", details: String(err?.message || err) });
+    const details = String(err?.message || err);
+    const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+    return json(res, status, { error: "DRIVERS FAILED", details });
   }
 }

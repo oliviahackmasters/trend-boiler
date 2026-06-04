@@ -1,13 +1,7 @@
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
 import { putObject, publicUrlForKey } from "../lib/r2.js";
+import { buildReportObjectKey, makeReportId, normalizeSector, requireProjectReportScope, safeFilename } from "../lib/projectReports.js";
 import busboy from "busboy";
-import crypto from "crypto";
-
-function safeFilename(name) {
-  return String(name || "report.pdf")
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 120);
-}
 
 export default async function handler(req, res) {
   setCors(req, res);
@@ -27,12 +21,17 @@ export default async function handler(req, res) {
     });
     let fileBuffer = null;
     let filename = null;
+    const fields = {};
 
     bb.on("file", (name, file, info) => {
       filename = safeFilename(info.filename);
       const chunks = [];
       file.on("data", (chunk) => chunks.push(chunk));
       file.on("end", () => { fileBuffer = Buffer.concat(chunks); });
+    });
+
+    bb.on("field", (name, value) => {
+      fields[name] = value;
     });
 
     bb.on("finish", async () => {
@@ -56,16 +55,34 @@ export default async function handler(req, res) {
 
         // ✅ FIX: was hardcoded to private R2 storage URL.
         // Now uses publicUrlForKey() which reads R2_PUBLIC_BASE_URL env var.
-        const key = `uploads/${crypto.randomUUID()}-${filename}`;
+        const sector = normalizeSector(fields.sector);
+        const reportId = String(fields.reportId || makeReportId()).trim();
+        const { projectId } = requireProjectReportScope({
+          projectId: fields.projectId,
+          sector
+        });
+        const key = buildReportObjectKey({ projectId, sector, reportId, filename });
         await putObject(key, fileBuffer, "application/pdf");
         const url = publicUrlForKey(key);
 
-        return res.status(200).json({ success: true, key, url, blobUrl: url, publicUrl: url });
+        return res.status(200).json({
+          success: true,
+          key,
+          url,
+          blobUrl: url,
+          publicUrl: url,
+          pathname: key,
+          reportId,
+          projectId,
+          sector
+        });
       } catch (uploadError) {
         console.error("Upload error:", uploadError);
-        return res.status(500).json({
+        const details = String(uploadError?.message || uploadError);
+        const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+        return res.status(status).json({
           error: "Upload failed",
-          details: String(uploadError?.message || uploadError)
+          details
         });
       }
     });

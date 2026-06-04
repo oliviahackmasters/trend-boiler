@@ -1,12 +1,6 @@
-import crypto from "crypto";
 import { createUploadUrl, publicUrlForKey } from "../lib/r2.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
-
-function safeFilename(name) {
-  return String(name || "report.pdf")
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 120);
-}
+import { buildReportObjectKey, makeReportId, requireProjectReportScope, safeFilename } from "../lib/projectReports.js";
 
 export default async function handler(req, res) {
   setCors(req, res);
@@ -28,6 +22,11 @@ export default async function handler(req, res) {
     }
 
     const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
+    const { projectId, sector } = requireProjectReportScope({
+      projectId: body.projectId,
+      sector: body.sector
+    });
+    const reportId = String(body.reportId || makeReportId()).trim();
     const filename = safeFilename(body.pathname || body.filename || "report.pdf");
     const contentType = body.contentType || "application/pdf";
 
@@ -35,7 +34,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Only PDFs are allowed." });
     }
 
-    const key = `uploads/${crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex')}-${filename}`;
+    const key = buildReportObjectKey({ projectId, sector, reportId, filename });
 
     console.log("Generating upload URL for key:", key);
     const uploadUrl = await createUploadUrl({ key, contentType });
@@ -45,14 +44,19 @@ export default async function handler(req, res) {
       uploadUrl,
       publicUrl,
       blobUrl: publicUrl,
+      reportId,
+      projectId,
+      sector,
       key,
       pathname: key
     });
   } catch (e) {
     console.error("Upload URL generation failed:", e);
-    return res.status(500).json({
+    const details = String(e?.message || e);
+    const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+    return res.status(status).json({
       error: "Failed to generate upload URL",
-      details: String(e?.message || e)
+      details
     });
   }
 }

@@ -2,6 +2,14 @@ import { listObjects } from "../lib/r2.js";
 import { openai } from "../lib/openaiClient.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
 import { getVectorStoreIdForSector } from "../lib/vs.js";
+import {
+  buildSourcePack,
+  getStoredProjectVectorStoreId,
+  isTrendReportSector,
+  listProjectSectorReports,
+  normalizeSector,
+  requireProjectReportScope
+} from "../lib/projectReports.js";
 
 import {
   buildProjectContext,
@@ -28,14 +36,32 @@ export default async function handler(req, res) {
   try {
     if (req.method !== "POST") return json(res, 405, { error: "Use POST." });
     const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
-    const sector = String(body.sector || "luxury").trim().toLowerCase();
-    const vsid = getVectorStoreIdForSector(sector);
+    const sector = normalizeSector(body.sector || "luxury");
+    let projectId = body.projectId?.toString?.().trim();
+    let reports = [];
+    let sourcePack = "";
+    let vsid = "";
+
+    if (isTrendReportSector(sector)) {
+      const scope = requireProjectReportScope({ projectId, sector });
+      projectId = scope.projectId;
+      reports = await listProjectSectorReports(scope);
+      if (!reports.length) {
+        return json(res, 400, { error: `No reports found for project ${scope.projectId} / sector ${scope.sector}` });
+      }
+      vsid = await getStoredProjectVectorStoreId(scope);
+      if (!vsid) {
+        return json(res, 500, { error: `Missing vector store ID for project ${scope.projectId} / sector ${scope.sector}` });
+      }
+      sourcePack = buildSourcePack(reports, scope);
+    } else {
+      vsid = getVectorStoreIdForSector(sector);
+    }
     if (!vsid) return json(res, 500, { error: `Missing vector store ID for sector: ${sector}` });
     const question = String(body.question || "").trim();
     const history = Array.isArray(body.history) ? body.history : [];
     if (!question) return json(res, 400, { error: "Missing question." });
 
-    const projectId = body.projectId?.toString?.().trim();
     const useProjectMemory = body.useProjectMemory !== false;
     const saveToProjectMemory = body.saveToProjectMemory !== false;
 
@@ -84,14 +110,19 @@ if (projectId && useProjectMemory) {
   }
 }
 
-    let docCount = 0;
-    try { const prefixes = sector === "luxury" ? ["trend-library/meta/luxury/", "trend-library/meta/"] : [`trend-library/meta/${sector}/`]; for (const prefix of prefixes) docCount += (await listObjects(prefix)).length; } catch {}
-    console.log(`ASK sector=${sector} vsid=${vsid} docs=${docCount} question=${question.slice(0,200)}`);
+    let docCount = reports.length;
+    if (!isTrendReportSector(sector)) {
+      try { docCount += (await listObjects(`trend-library/meta/${sector}/`)).length; } catch {}
+    }
+    console.log(`ASK project=${projectId || "none"} sector=${sector} vsid=${vsid} docs=${docCount} question=${question.slice(0,200)}`);
 
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
     const route = body.outputFormat === "canary" ? { outputFormat: "canary" } : routeUserQuery(question);
     const toolName = route.outputFormat === "canary" || sector === "canary" ? "canary" : "trend-boiler";
-    const systemParts = ["You are a trends research assistant.", `Answer using ONLY the uploaded documents and saved web sources in the "${sector}" sector when possible.`, "If the answer is not in the library, say: NOT IN DOCUMENTS, then suggest what to upload or add by URL.", "Provide sources or evidence from the library when possible.", "Keep answers structured and concise.", "Use british english spelling and grammar.", "Explore non-sustainability related themes and/or trends unless specifically prompted to do so."];
+    const systemParts = ["You are a trends research assistant.", isTrendReportSector(sector) ? `Answer using ONLY uploaded documents and saved web sources for project "${projectId}" in the "${sector}" sector.` : `Answer using ONLY the uploaded documents and saved web sources in the "${sector}" sector when possible.`, "If the answer is not in the scoped library, say: NOT IN DOCUMENTS, then suggest what to upload or add by URL.", "Provide sources or evidence from the scoped library when possible.", "Keep answers structured and concise.", "Use british english spelling and grammar.", "Explore non-sustainability related themes and/or trends unless specifically prompted to do so."];
+  if (sourcePack) {
+  systemParts.push(sourcePack);
+}
   if (projectMemoryContext) {
   systemParts.push([
     "",
@@ -161,5 +192,9 @@ if (projectId && useProjectMemory) {
   },
 });
 
-  } catch (err) { return json(res, 500, { error: "ASK FAILED", details: String(err?.message || err) }); }
+  } catch (err) {
+    const details = String(err?.message || err);
+    const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+    return json(res, status, { error: "ASK FAILED", details });
+  }
 }

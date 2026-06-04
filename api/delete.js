@@ -1,7 +1,8 @@
-import { deleteObject, listObjects, getJson } from "../lib/r2.js";
+import { deleteObject } from "../lib/r2.js";
 import { openai } from "../lib/openaiClient.js";
-import { getVectorStores, getVectorStoreIdForSector } from "../lib/vs.js";
+import { getVectorStores } from "../lib/vs.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
+import { getProjectReportByHash, getStoredProjectVectorStoreId, requireProjectReportScope } from "../lib/projectReports.js";
 
 
 function json(res, status, payload){
@@ -22,36 +23,16 @@ export default async function handler(req, res){
     const hash = String(body.hash || "").trim();
     if (!hash) return json(res, 400, { error: "Missing hash" });
 
-    const sectorFromBody = String(body.sector || "").trim().toLowerCase();
-    const sector = sectorFromBody || "luxury";
+    const scope = requireProjectReportScope({
+      projectId: body.projectId,
+      sector: body.sector
+    });
+    const found = await getProjectReportByHash({ ...scope, hash });
+    if (!found) return json(res, 404, { error: "Not found" });
 
-    // Find meta blob (support legacy root location and per-sector folders)
-    const candidates = [];
-    if (sector === "luxury") {
-      candidates.push(`trend-library/meta/${hash}.json`);
-    }
-    candidates.push(`trend-library/meta/${sector}/${hash}.json`);
-
-    let metaBlob = null;
-    for (const prefix of candidates) {
-      const metas = await listObjects(prefix);
-metaBlob = metas[0];
-      if (metaBlob) break;
-    }
-
-    if (!metaBlob) {
-      // Fallback: scan all meta entries for matching hash
-      const all = await listObjects("trend-library/meta/");
-metaBlob = all.find(b => String(b.key || "").endsWith(`/${hash}.json`));
-    }
-
-    if (!metaBlob) return json(res, 404, { error: "Not found" });
-
-    const meta = await getJson(metaBlob.key);
-
-    const metaSector = String(meta.sector || "").trim().toLowerCase() || sector;
-    const vsid = getVectorStoreIdForSector(metaSector);
-    if (!vsid) return json(res, 500, { error: `Missing vector store ID for sector: ${metaSector}` });
+    const { meta, metaKey } = found;
+    const vsid = meta.vectorStoreId || await getStoredProjectVectorStoreId(scope);
+    if (!vsid) return json(res, 500, { error: `Missing vector store ID for project ${scope.projectId} / sector ${scope.sector}` });
 
     const vectorStores = getVectorStores(openai);
 
@@ -68,11 +49,13 @@ metaBlob = all.find(b => String(b.key || "").endsWith(`/${hash}.json`));
     // Delete PDF blob + meta blob
     if (meta.blobUrl) {
       try { await deleteObject(meta.blobUrl); } catch {}
-await deleteObject(metaBlob.key);
     }
+    await deleteObject(metaKey);
 
     return json(res, 200, { ok: true });
   } catch(e){
-    return json(res, 500, { error: "DELETE FAILED", details: String(e?.message || e) });
+    const details = String(e?.message || e);
+    const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+    return json(res, status, { error: "DELETE FAILED", details });
   }
 }

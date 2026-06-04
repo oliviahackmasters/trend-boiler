@@ -1,5 +1,5 @@
-import { listObjects, getJson } from "../lib/r2.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
+import { listProjectSectorReports, requireProjectReportScope } from "../lib/projectReports.js";
 
 
 function json(res, status, payload) {
@@ -18,32 +18,21 @@ if (!requireDemoToken(req, res)) return;
   try {
     const base = req.headers.host ? `http://${req.headers.host}` : "http://localhost";
     const url = new URL(req.url, base);
-    const sector = String(url.searchParams.get("sector") || "luxury").trim().toLowerCase();
-    console.log(`LIBRARY FETCH sector=${sector}`);
+    const scope = requireProjectReportScope({
+      projectId: url.searchParams.get("projectId"),
+      sector: url.searchParams.get("sector")
+    });
+    console.log(`LIBRARY FETCH project=${scope.projectId} sector=${scope.sector}`);
 
-    const metas = await listObjects("trend-library/meta/");
-    const items = [];
-
-    for (const b of metas) {
-      const meta = await getJson(b.key).catch(() => null);
-      if (!meta) continue;
-
-      const itemSector = String(meta.sector || "").trim().toLowerCase();
-
-      if (sector === "luxury") {
-        if (!itemSector || itemSector === "luxury") items.push(meta);
-      } else if (itemSector === sector) {
-        items.push(meta);
-      }
-    }
-
-    items.sort((a, b) => String(b.addedAt || "").localeCompare(String(a.addedAt || "")));
+    const items = await listProjectSectorReports(scope);
 
     return json(res, 200, { items });
   } catch (e) {
-    return json(res, 500, {
+    const details = String(e?.message || e);
+    const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+    return json(res, status, {
       error: "LIBRARY FAILED",
-      details: String(e?.message || e)
+      details
     });
   }
 }

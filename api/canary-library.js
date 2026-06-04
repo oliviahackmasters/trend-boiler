@@ -1,8 +1,10 @@
 import { listObjects, getJson, putJson } from "../lib/r2.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
-
-const META_PREFIX = "trend-library/meta/canary/";
-const STATE_KEY = "trend-library/meta/canary/library-state.json";
+import {
+  projectReportMetaPrefix,
+  requireProjectReportScope,
+  normalizeSector
+} from "../lib/projectReports.js";
 
 function json(res, status, payload) {
   res.statusCode = status;
@@ -10,9 +12,15 @@ function json(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-async function readState() {
+function getStateKeyForScope(scope) {
+  const prefix = projectReportMetaPrefix(scope);
+  return `${prefix}library-state.json`;
+}
+
+async function readState(scope) {
   try {
-    const state = await getJson(STATE_KEY);
+    const stateKey = getStateKeyForScope(scope);
+    const state = await getJson(stateKey);
     return {
       selectedById: state.selectedById || {},
       deletedById: state.deletedById || {}
@@ -25,24 +33,20 @@ async function readState() {
   }
 }
 
-async function writeState(state) {
-  await putJson(STATE_KEY, state);
+async function writeState(scope, state) {
+  const stateKey = getStateKeyForScope(scope);
+  await putJson(stateKey, state);
 }
 
-function filenameFromKey(key) {
-  return key
-    .split("/")
-    .pop()
-    .replace(/\.json$/, "");
-}
-
-async function buildLibrary() {
-  const state = await readState();
-  const objects = await listObjects(META_PREFIX);
+async function buildLibrary(scope) {
+  const state = await readState(scope);
+  const metaPrefix = projectReportMetaPrefix(scope);
+  const stateKey = getStateKeyForScope(scope);
+  const objects = await listObjects(metaPrefix);
 
   const metaObjects = objects
     .filter((object) => object.key)
-    .filter((object) => object.key !== STATE_KEY)
+    .filter((object) => object.key !== stateKey)
     .filter((object) => !state.deletedById[object.key]);
 
   const items = await Promise.all(
@@ -95,8 +99,17 @@ export default async function handler(req, res) {
   if (!requireDemoToken(req, res)) return;
 
   try {
+    let scope;
+    
     if (req.method === "GET") {
-      const { items } = await buildLibrary();
+      const base = req.headers.host ? `http://${req.headers.host}` : "http://localhost";
+      const url = new URL(req.url, base);
+      scope = requireProjectReportScope({
+        projectId: url.searchParams.get("projectId"),
+        sector: url.searchParams.get("sector") || "canary"
+      });
+      
+      const { items } = await buildLibrary(scope);
       return json(res, 200, { items });
     }
 
@@ -107,18 +120,23 @@ export default async function handler(req, res) {
     const body =
       typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
 
+    scope = requireProjectReportScope({
+      projectId: body.projectId,
+      sector: body.sector || "canary"
+    });
+
     const action = String(body.action || "");
     const id = String(body.id || "");
 
-    const { state } = await buildLibrary();
+    const { state } = await buildLibrary(scope);
 
     if (action === "toggle") {
       if (!id) return json(res, 400, { error: "Missing id." });
 
       state.selectedById[id] = state.selectedById[id] === false;
-      await writeState(state);
+      await writeState(scope, state);
 
-      const { items } = await buildLibrary();
+      const { items } = await buildLibrary(scope);
       return json(res, 200, { items });
     }
 
@@ -126,31 +144,33 @@ export default async function handler(req, res) {
       if (!id) return json(res, 400, { error: "Missing id." });
 
       state.deletedById[id] = true;
-      await writeState(state);
+      await writeState(scope, state);
 
-      const { items } = await buildLibrary();
+      const { items } = await buildLibrary(scope);
       return json(res, 200, { items });
     }
 
-if (action === "add") {
-  const item = body.item || {};
-  const idFromItem = String(item.key || item.id || "");
+    if (action === "add") {
+      const item = body.item || {};
+      const idFromItem = String(item.key || item.id || "");
 
-  if (idFromItem) {
-    state.selectedById[idFromItem] = item.selected !== false;
-    delete state.deletedById[idFromItem];
-    await writeState(state);
-  }
+      if (idFromItem) {
+        state.selectedById[idFromItem] = item.selected !== false;
+        delete state.deletedById[idFromItem];
+        await writeState(scope, state);
+      }
 
-  const { items } = await buildLibrary();
-  return json(res, 200, { items });
-}
+      const { items } = await buildLibrary(scope);
+      return json(res, 200, { items });
+    }
 
     return json(res, 400, { error: "Unknown action." });
   } catch (err) {
-    return json(res, 500, {
+    const details = String(err?.message || err);
+    const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+    return json(res, status, {
       error: "CANARY_LIBRARY_FAILED",
-      details: String(err?.message || err)
+      details
     });
   }
 }

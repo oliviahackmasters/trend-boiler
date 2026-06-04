@@ -5,6 +5,15 @@ import crypto from "crypto";
 import net from "net";
 import { lookup } from "dns/promises";
 import { listObjects, putJson, putObject } from "../lib/r2.js";
+import {
+  buildReportObjectKey,
+  getOrCreateProjectVectorStore,
+  isTrendReportSector,
+  makeReportId,
+  normalizeSector,
+  projectReportMetaKey,
+  requireProjectReportScope
+} from "../lib/projectReports.js";
 import { openai } from "../lib/openaiClient.js";
 import { getVectorStores, getVectorStoreIdForSector } from "../lib/vs.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
@@ -190,10 +199,16 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
     const parsedUrl = await validatePublicUrl(body.url);
     const sourceUrl = parsedUrl.toString();
-    const sector = String(body.sector || "luxury").trim().toLowerCase();
+    const sector = normalizeSector(body.sector);
+    if (!sector) return json(res, 400, { error: "Missing sector" });
+    const reportScope = isTrendReportSector(sector)
+      ? requireProjectReportScope({ projectId: body.projectId, sector })
+      : null;
     const tagsIn = body.tags || {};
 
-    const vsid = getVectorStoreIdForSector(sector);
+    const vsid = reportScope
+      ? await getOrCreateProjectVectorStore({ openai, ...reportScope })
+      : getVectorStoreIdForSector(sector);
     if (!vsid) return json(res, 500, { error: `Missing vector store ID for sector: ${sector}` });
 
     const resp = await fetch(sourceUrl, {
@@ -239,14 +254,25 @@ export default async function handler(req, res) {
     }
 
     const hash = crypto.createHash("sha256").update(uploadBuffer).digest("hex");
-    const sectorMetaKey = `trend-library/meta/${sector}/${hash}.json`;
+    const sectorMetaKey = reportScope
+      ? projectReportMetaKey({ ...reportScope, hash })
+      : `trend-library/meta/${sector}/${hash}.json`;
     const existing = await listObjects(sectorMetaKey);
     if (existing.length) {
-      return json(res, 200, { ok: true, duplicate: true, hash });
+      return json(res, 200, {
+        ok: true,
+        duplicate: true,
+        hash,
+        projectId: reportScope?.projectId || null,
+        sector
+      });
     }
 
     const baseName = safeFilename(title || parsedUrl.hostname);
-    const objectKey = `uploads/url-${hash.slice(0, 16)}-${baseName}${extension}`;
+    const reportId = String(body.reportId || makeReportId()).trim();
+    const objectKey = reportScope
+      ? buildReportObjectKey({ ...reportScope, reportId, filename: `${baseName}${extension}` })
+      : `uploads/url-${hash.slice(0, 16)}-${baseName}${extension}`;
     const stored = await putObject(objectKey, uploadBuffer, uploadContentType);
 
     tmpPath = path.join(os.tmpdir(), `ingest-url-${Date.now()}${extension}`);
@@ -271,9 +297,13 @@ export default async function handler(req, res) {
 
     const meta = {
       hash,
+      metaKey: sectorMetaKey,
+      ...(reportScope ? { projectId: reportScope.projectId } : {}),
       sector,
+      reportId,
       filename: `${title}${extension}`,
       pathname: objectKey,
+      r2Key: objectKey,
       blobUrl: stored.url,
       sourceUrl,
       sourceType: contentType === "application/pdf" ? "pdf-url" : "url",
@@ -281,7 +311,8 @@ export default async function handler(req, res) {
       addedAt: new Date().toISOString(),
       tags: finalTags,
       openaiFileId: createdFile.id,
-      vsFileId: vsFile?.id || null
+      vsFileId: vsFile?.id || null,
+      vectorStoreId: reportScope ? vsid : null
     };
 
     await putJson(sectorMetaKey, meta);
@@ -293,10 +324,14 @@ export default async function handler(req, res) {
       title,
       filename: meta.filename,
       sourceUrl,
+      projectId: reportScope?.projectId || null,
+      sector,
       tags: finalTags
     });
   } catch (e) {
-    return json(res, 500, { error: "URL INGEST FAILED", details: String(e?.message || e) });
+    const details = String(e?.message || e);
+    const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+    return json(res, status, { error: "URL INGEST FAILED", details });
   } finally {
     if (tmpPath) {
       try { fs.unlinkSync(tmpPath); } catch {}

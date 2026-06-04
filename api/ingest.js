@@ -2,7 +2,15 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import crypto from "crypto";
-import { putJson, listObjects, publicUrlForKey } from "../lib/r2.js";
+import { putJson, listObjects, publicUrlForKey, keyFromPublicUrl } from "../lib/r2.js";
+import {
+  isTrendReportSector,
+  makeReportId,
+  normalizeSector,
+  projectReportMetaKey,
+  requireProjectReportScope,
+  getOrCreateProjectVectorStore
+} from "../lib/projectReports.js";
 
 import { openai } from "../lib/openaiClient.js";
 import { getVectorStores, getVectorStoreIdForSector } from "../lib/vs.js";
@@ -265,9 +273,22 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return json(res, 405, { error: "Use POST" });
 
   const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
+  const sector = normalizeSector(body.sector);
+  if (!sector) return json(res, 400, { error: "Missing sector" });
+
+  let reportScope = null;
+  try {
+    reportScope = isTrendReportSector(sector)
+      ? requireProjectReportScope({ projectId: body.projectId, sector })
+      : null;
+  } catch (scopeError) {
+    return json(res, 400, { error: scopeError.message });
+  }
   const blobUrl = body.blobUrl || body.publicUrl || (body.key ? publicUrlForKey(body.key) : "");
   const filename = body.filename || "report.pdf";
-  const pathname = body.pathname || "";
+  const pathname = body.pathname || body.key || "";
+  const r2Key = body.key || pathname || (blobUrl ? keyFromPublicUrl(blobUrl) : "");
+  const reportId = String(body.reportId || makeReportId()).trim();
   const size = Number(body.size || 0);
   const tagsIn = body.tags || {};
 
@@ -276,11 +297,17 @@ export default async function handler(req, res) {
     return json(res, 400, { error: "Missing blobUrl", details: "Provide blobUrl, publicUrl, or key in request body." });
   }
 
-  const sector = String(body.sector || "luxury").trim().toLowerCase();
-  const vsid = getVectorStoreIdForSector(sector);
+  let vsid = "";
+  try {
+    vsid = reportScope
+      ? await getOrCreateProjectVectorStore({ openai, ...reportScope })
+      : getVectorStoreIdForSector(sector);
+  } catch (scopeError) {
+    return json(res, 500, { error: "Vector store setup failed", details: String(scopeError?.message || scopeError) });
+  }
   if (!vsid) return json(res, 500, { error: `Missing vector store ID for sector: ${sector}` });
 
-  console.log(`INGEST START sector=${sector} filename=${filename} size=${size} blobUrl=${blobUrl}`);
+  console.log(`INGEST START project=${reportScope?.projectId || "legacy"} sector=${sector} filename=${filename} size=${size} blobUrl=${blobUrl}`);
 
   try {
     // Download blob
@@ -292,10 +319,16 @@ export default async function handler(req, res) {
     // Hash for duplicates (exact byte match)
     const hash = crypto.createHash("sha256").update(buf).digest("hex");
 
-    // If metadata exists for this sector (or legacy luxury root), treat as duplicate and stop
-    const sectorMetaKey = `trend-library/meta/${sector}/${hash}.json`;
+    // Project-scoped reports must only de-dupe within the selected project + sector.
+    const sectorMetaKey = reportScope
+      ? projectReportMetaKey({ ...reportScope, hash })
+      : `trend-library/meta/${sector}/${hash}.json`;
     const legacyMetaKey = `trend-library/meta/${hash}.json`;
-    const checkKeys = sector === "luxury" ? [legacyMetaKey, sectorMetaKey] : [sectorMetaKey];
+    const checkKeys = reportScope
+      ? [sectorMetaKey]
+      : sector === "luxury"
+        ? [legacyMetaKey, sectorMetaKey]
+        : [sectorMetaKey];
 
     for (const key of checkKeys) {
       const existing = await listObjects(key);
@@ -307,6 +340,8 @@ export default async function handler(req, res) {
           hash,
           key,
           metaKey: key,
+          projectId: reportScope?.projectId || null,
+          sector,
           filename
         });
       }
@@ -363,15 +398,20 @@ export default async function handler(req, res) {
     const metaKey = sectorMetaKey;
     const meta = {
       hash,
+      metaKey,
+      ...(reportScope ? { projectId: reportScope.projectId } : {}),
       sector,
+      reportId,
       filename,
-      pathname,
+      pathname: r2Key || pathname,
+      r2Key: r2Key || pathname,
       blobUrl,
       size,
       addedAt,
       tags: finalTags,
       openaiFileId: createdFile.id,
-      vsFileId: vsFile?.id || null
+      vsFileId: vsFile?.id || null,
+      vectorStoreId: reportScope ? vsid : null
     };
 
     await putJson(metaKey, meta);
@@ -384,6 +424,8 @@ export default async function handler(req, res) {
       tags: finalTags,
       key: metaKey,
       metaKey,
+      projectId: reportScope?.projectId || null,
+      sector,
       filename
     });
   } catch (e) {

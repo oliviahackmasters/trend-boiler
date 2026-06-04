@@ -3,6 +3,14 @@ import { openai } from "../lib/openaiClient.js";
 import { setCors, handleOptions, requireDemoToken } from "../lib/cors.js";
 import { getVectorStoreIdForSector } from "../lib/vs.js";
 import {
+  buildSourcePack,
+  getStoredProjectVectorStoreId,
+  isTrendReportSector,
+  listProjectSectorReports,
+  normalizeSector,
+  requireProjectReportScope
+} from "../lib/projectReports.js";
+import {
   buildProjectContext,
   saveProjectMemory,
   summariseOutputForMemory,
@@ -25,15 +33,33 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
-    const sector = String(body.sector || "luxury").trim().toLowerCase();
-    const vsid = getVectorStoreIdForSector(sector);
+    const sector = normalizeSector(body.sector || "luxury");
+    let projectId = body.projectId?.toString?.().trim();
+    let reports = [];
+    let sourcePack = "";
+    let vsid = "";
+
+    if (isTrendReportSector(sector)) {
+      const scope = requireProjectReportScope({ projectId, sector });
+      projectId = scope.projectId;
+      reports = await listProjectSectorReports(scope);
+      if (!reports.length) {
+        return json(res, 400, { error: `No reports found for project ${scope.projectId} / sector ${scope.sector}` });
+      }
+      vsid = await getStoredProjectVectorStoreId(scope);
+      if (!vsid) {
+        return json(res, 500, { error: `Missing vector store ID for project ${scope.projectId} / sector ${scope.sector}` });
+      }
+      sourcePack = buildSourcePack(reports, scope);
+    } else {
+      vsid = getVectorStoreIdForSector(sector);
+    }
     if (!vsid) return json(res, 500, { error: `Missing vector store ID for sector: ${sector}` });
 
     const theme = String(body.theme || "").trim();
 
     if (!theme) return json(res, 400, { error: "Missing theme" });
 
-const projectId = body.projectId?.toString?.().trim();
 const useProjectMemory = body.useProjectMemory !== false;
 const saveToProjectMemory = body.saveToProjectMemory !== false;
 
@@ -71,7 +97,9 @@ if (projectId && useProjectMemory) {
     // IMPORTANT: keep strict JSON so the frontend can render the map directly.
     // The values remain arrays of strings for backwards compatibility with the SVG renderer.
 const prompt = `
-You are a senior trends strategist. Use ONLY the reports, documents, and saved web sources in the vector store as source evidence.
+You are a senior trends strategist. ${isTrendReportSector(sector) ? `Use ONLY reports, documents, and saved web sources for project "${projectId}" in the "${sector}" sector as source evidence.` : "Use ONLY the reports, documents, and saved web sources in the vector store as source evidence."}
+
+${sourcePack ? `${sourcePack}\n` : ""}
 
 ${projectContextBlock ? `SHARED PROJECT CONTEXT
 Use this for continuity, client/project background and Hackmasters methodology. Do not treat project memory as document evidence unless it explicitly contains cited evidence.
@@ -155,6 +183,7 @@ Rules:
         sector,
         theme,
         outputFormat: "future-map",
+        docCount: reports.length,
         timestamp: new Date().toISOString(),
       },
     });
@@ -181,6 +210,8 @@ Rules:
   },
 });
   } catch (e) {
-    return json(res, 500, { error: "FUTURE MAP FAILED", details: String(e?.message || e) });
+    const details = String(e?.message || e);
+    const status = /^Missing (projectId|sector)$/.test(details) ? 400 : 500;
+    return json(res, status, { error: "FUTURE MAP FAILED", details });
   }
 }

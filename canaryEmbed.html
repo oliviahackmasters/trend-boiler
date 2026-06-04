@@ -384,10 +384,38 @@ let history = [];
 let uploaded = [];
 let libraryVisible = true;
 
+  function setProjectScopedButtonsEnabled(enabled) {
+    filesEl.disabled = !enabled;
+    uploadBtn.disabled = !enabled;
+    if (!enabled) {
+      contextEl.innerHTML = `
+        <div style="padding: 12px; color: rgba(255,255,255,0.7); font-size: 12px;">
+          SELECT A PROJECT TO UPLOAD TRANSCRIPTS.
+        </div>
+      `;
+    }
+  }
+
 async function loadLibrary() {
+  const project = readSelectedProject();
+  if (!project?.id) {
+    libraryEl.innerHTML = `
+      <div style="padding: 12px; color: rgba(255,255,255,0.7); font-size: 12px;">
+        SELECT A PROJECT TO VIEW OR UPLOAD TRANSCRIPTS.
+      </div>
+    `;
+    return;
+  }
+
   libraryEl.innerHTML = loadingHtml("Loading library...");
 
-  const resp = await fetch(`${API_BASE}/api/canary-library`, {
+  const projectId = String(project.id).trim();
+  const params = new URLSearchParams({
+    projectId,
+    sector: SECTOR
+  });
+
+  const resp = await fetch(`${API_BASE}/api/canary-library?${params.toString()}`, {
     method: "GET",
     headers: headersJson()
   });
@@ -403,10 +431,22 @@ async function loadLibrary() {
 }
 
 async function updateLibrary(action, payload = {}) {
+  const project = readSelectedProject();
+  if (!project?.id) {
+    throw new Error("Select a project first");
+  }
+
+  const projectId = String(project.id).trim();
+  
   const resp = await fetch(`${API_BASE}/api/canary-library`, {
     method: "POST",
     headers: headersJson(),
-    body: JSON.stringify({ action, ...payload })
+    body: JSON.stringify({
+      projectId,
+      sector: SECTOR,
+      action,
+      ...payload
+    })
   });
 
   const data = await resp.json().catch(() => ({}));
@@ -528,6 +568,33 @@ function showError(err){
     if (DEMO_TOKEN) h.Authorization = "Bearer " + DEMO_TOKEN;
     if (sessionToken) h["x-session-token"] = sessionToken;
     return h;
+  }
+
+  function readSelectedProject(){
+    try {
+      const fromClient = window.HMProjectMemory?.getSelectedProject?.();
+      if (fromClient?.id) return fromClient;
+    } catch {}
+
+    try {
+      const raw = localStorage.getItem("hm_project_memory_selected_project");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function requireProjectPayload(){
+    const project = readSelectedProject();
+    if (!project?.id) {
+      throw new Error("Select a project before uploading transcripts.");
+    }
+    return {
+      projectId: String(project.id).trim(),
+      projectName: project.name || project.id,
+      useProjectMemory: true,
+      saveToProjectMemory: true
+    };
   }
 
   function escapeHtml(s){
@@ -726,8 +793,11 @@ qEl.addEventListener("input", () => autoSizeTextarea(qEl));
 autoSizeTextarea(qEl);
 
   async function uploadOne(file){
+    const projectPayload = requireProjectPayload();
     const fd = new FormData();
     fd.append("file", file);
+    fd.append("projectId", projectPayload.projectId);
+    fd.append("sector", SECTOR);
     const uploadResp = await fetch(`${API_BASE}/api/upload`, {
       method:"POST",
       headers: DEMO_TOKEN ? { Authorization:"Bearer " + DEMO_TOKEN, "x-session-token":sessionToken } : { "x-session-token":sessionToken },
@@ -739,7 +809,7 @@ autoSizeTextarea(qEl);
     const ingestResp = await fetch(`${API_BASE}/api/ingest`, {
       method:"POST",
       headers:headersJson(),
-      body:JSON.stringify({ sector:SECTOR, blobUrl:uploadData.blobUrl || uploadData.url || uploadData.publicUrl, filename:file.name, size:file.size, tags:{ company:"canary", topics:["Transcript", "Interview"] } })
+      body:JSON.stringify({ ...projectPayload, sector:SECTOR, reportId:uploadData.reportId, blobUrl:uploadData.blobUrl || uploadData.url || uploadData.publicUrl, filename:file.name, size:file.size, tags:{ company:"canary", topics:["Transcript", "Interview"] } })
     });
     const ingestData = await ingestResp.json().catch(() => ({}));
     if (!ingestResp.ok || ingestData.error) throw new Error(ingestData.details || ingestData.error || `Ingest failed for ${file.name}`);
@@ -1019,6 +1089,31 @@ loadLibrary().catch((err) => {
   setStatus("Library load failed", true);
   showError(err);
 });
+
+// Initialize button states based on project selection
+const initialProject = readSelectedProject();
+setProjectScopedButtonsEnabled(!!initialProject?.id);
+
+// Watch for project changes and refresh library
+let lastProjectId = readSelectedProject()?.id || "";
+setInterval(() => {
+  const currentProject = readSelectedProject();
+  const currentProjectId = currentProject?.id || "";
+  
+  if (currentProjectId !== lastProjectId) {
+    lastProjectId = currentProjectId;
+    // Project changed, update UI and refresh library
+    setProjectScopedButtonsEnabled(!!currentProjectId);
+    if (currentProjectId) {
+      loadLibrary().catch((err) => {
+        setStatus("Library reload failed", true);
+        showError(err);
+      });
+    } else {
+      setStatus("SELECT A PROJECT", true);
+    }
+  }
+}, 500);
 })();
 
 </script>

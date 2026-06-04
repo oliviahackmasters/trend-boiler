@@ -703,7 +703,93 @@ const SECTORS = [
 ];
 
   const LS_SECTOR_KEY = "hm_trendchat_sector";
+  const PROJECT_STORAGE_KEY = "hm_project_memory_selected_project";
   let currentSector = localStorage.getItem(LS_SECTOR_KEY) || "luxury";
+  let selectedProjectId = "";
+  let selectedProjectName = "";
+
+  function readStoredProject(){
+    try {
+      const fromClient = window.HMProjectMemory?.getSelectedProject?.();
+      if (fromClient?.id) return fromClient;
+    } catch {}
+
+    try {
+      const raw = localStorage.getItem(PROJECT_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function getProjectPayload(){
+    return selectedProjectId
+      ? {
+          projectId: selectedProjectId,
+          projectName: selectedProjectName || selectedProjectId,
+          useProjectMemory: true,
+          saveToProjectMemory: true
+        }
+      : null;
+  }
+
+  function setProjectScopedButtons(disabled){
+    const shouldDisable = !!disabled || !selectedProjectId;
+    uploadBtn.disabled = shouldDisable;
+    addUrlBtn.disabled = shouldDisable;
+    askBtn.disabled = shouldDisable;
+    if (mapGenBtn) mapGenBtn.disabled = shouldDisable;
+  }
+
+  function renderProjectRequiredLibrary(){
+    libEl.innerHTML = `
+      <div class="hm-lib">
+        <div class="hm-lib-title">LIBRARY (${currentSector.toUpperCase()})</div>
+        <div class="hm-lib-meta">SELECT A PROJECT TO VIEW OR UPLOAD REPORTS.</div>
+      </div>
+    `;
+  }
+
+  function syncSelectedProject(options = {}){
+    const project = readStoredProject();
+    const nextProjectId = project?.id ? String(project.id).trim() : "";
+    const changed = nextProjectId !== selectedProjectId;
+
+    selectedProjectId = nextProjectId;
+    selectedProjectName = project?.name || nextProjectId;
+    window.HM_SELECTED_PROJECT_ID = selectedProjectId || "";
+
+    if (changed && options.resetOnChange) {
+      history = [];
+      chatEl.innerHTML = "";
+    }
+
+    if (options.force || changed) {
+      setProjectScopedButtons(false);
+
+      if (!selectedProjectId) {
+        renderProjectRequiredLibrary();
+        setStatus("SELECT A PROJECT", true);
+      } else {
+        setStatus(`READY (${currentSector.toUpperCase()} / ${selectedProjectName || selectedProjectId})`);
+        refreshLibrary();
+      }
+    }
+
+    return selectedProjectId;
+  }
+
+  function requireProjectScope(){
+    syncSelectedProject();
+    const payload = getProjectPayload();
+    if (!payload?.projectId) {
+      setProjectScopedButtons(false);
+      addSys("SELECT A PROJECT FIRST", true);
+      renderProjectRequiredLibrary();
+      return null;
+    }
+    return payload;
+  }
 
   function setSector(sector) {
     if (!sector) return;
@@ -718,6 +804,7 @@ const SECTORS = [
     // Reset conversation when switching context
     history = [];
     chatEl.innerHTML = "";
+    syncSelectedProject();
     refreshLibrary();
   }
 
@@ -1064,7 +1151,7 @@ libToggleBtn.textContent = "SHOW";
           const resp = await fetch(API_BASE + "/api/delete", {
             method: "POST",
             headers: headersJson(),
-            body: JSON.stringify({ sector: currentSector, hash })
+            body: JSON.stringify({ ...getProjectPayload(), sector: currentSector, hash })
           });
           const data = await resp.json().catch(()=>({}));
           if (!resp.ok) throw new Error((data.error || "DELETE FAILED") + (data.details ? " — " + data.details : ""));
@@ -1080,8 +1167,16 @@ libToggleBtn.textContent = "SHOW";
   }
 
   async function refreshLibrary(){
+    if (!selectedProjectId) {
+      renderProjectRequiredLibrary();
+      return;
+    }
     try{
-      const resp = await fetch(API_BASE + "/api/library?sector=" + encodeURIComponent(currentSector), {
+      const params = new URLSearchParams({
+        projectId: selectedProjectId,
+        sector: currentSector
+      });
+      const resp = await fetch(API_BASE + "/api/library?" + params.toString(), {
         method: "GET",
         headers: headersJson()
       });
@@ -1094,9 +1189,11 @@ libToggleBtn.textContent = "SHOW";
   }
 
 
-  async function uploadFiles(){
+async function uploadFiles(){
   const files = Array.from(fileEl.files || []);
   if (!files.length) return addSys("CHOOSE PDFS FIRST", true);
+  const projectPayload = requireProjectScope();
+  if (!projectPayload) return;
 
   await ensureSession();
 
@@ -1127,6 +1224,8 @@ libToggleBtn.textContent = "SHOW";
         method: "POST",
         headers: headersJson(),
         body: JSON.stringify({
+          ...projectPayload,
+          sector: currentSector,
           filename: file.name,
           pathname: file.name,
           contentType: file.type || "application/pdf"
@@ -1182,7 +1281,9 @@ libToggleBtn.textContent = "SHOW";
         method: "POST",
         headers: headersJson(),
         body: JSON.stringify({
+          ...projectPayload,
           sector: currentSector,
+          reportId: uploadInfo.reportId,
           blobUrl,
           pathname,
           filename: file.name,
@@ -1216,15 +1317,15 @@ libToggleBtn.textContent = "SHOW";
   } catch(e) {
     addSys("UPLOAD ERROR: " + (e.message || e), true);
   } finally {
-    uploadBtn.disabled = false;
-    addUrlBtn.disabled = false;
-    askBtn.disabled = false;
+    setProjectScopedButtons(false);
   }
 }
 
   async function ingestUrl(){
     const sourceUrl = (urlEl.value || "").trim();
     if (!sourceUrl) return addSys("PASTE A URL FIRST", true);
+    const projectPayload = requireProjectScope();
+    if (!projectPayload) return;
 
     await ensureSession();
 
@@ -1246,7 +1347,7 @@ libToggleBtn.textContent = "SHOW";
       const resp = await fetch(`${API_BASE}/api/ingest-url`, {
         method: "POST",
         headers: headersJson(),
-        body: JSON.stringify({ sector: currentSector, url: sourceUrl, tags })
+        body: JSON.stringify({ ...projectPayload, sector: currentSector, url: sourceUrl, tags })
       });
       const data = await resp.json().catch(()=>({}));
       if (!resp.ok) throw new Error((data.error || "URL INGEST FAILED") + (data.details ? " — " + data.details : ""));
@@ -1258,15 +1359,15 @@ libToggleBtn.textContent = "SHOW";
     } catch(e){
       addSys("URL ERROR: " + (e.message || e), true);
     } finally {
-      uploadBtn.disabled = false;
-      addUrlBtn.disabled = false;
-      askBtn.disabled = false;
+      setProjectScopedButtons(false);
     }
   }
 
   async function generateDrivers(prompt, topic){
     const cleanTopic = String(topic || "").trim();
     if (!cleanTopic) return addSys("ENTER A TOPIC FOR DRIVER GENERATION", true);
+    const projectPayload = requireProjectScope();
+    if (!projectPayload) return;
 
     await ensureSession();
 
@@ -1282,7 +1383,7 @@ libToggleBtn.textContent = "SHOW";
       const resp = await fetch(API_BASE + "/api/drivers", {
         method:"POST",
         headers: headersJson(),
-        body: JSON.stringify({ sector: currentSector, topic: cleanTopic, history })
+        body: JSON.stringify({ ...projectPayload, sector: currentSector, topic: cleanTopic, history })
       });
       const data = await resp.json().catch(()=>({}));
       if (!resp.ok) throw new Error((data.error || "DRIVERS FAILED") + (data.details ? " - " + data.details : ""));
@@ -1298,9 +1399,7 @@ libToggleBtn.textContent = "SHOW";
       loadingMsg.querySelector(".hm-msg-body").innerHTML = escapeHtml("DRIVERS ERROR: " + (e.message || e));
       setStatus("ERROR", true);
     } finally {
-      askBtn.disabled = false;
-      uploadBtn.disabled = false;
-      addUrlBtn.disabled = false;
+      setProjectScopedButtons(false);
     }
   }
 
@@ -1312,6 +1411,8 @@ libToggleBtn.textContent = "SHOW";
     if (driverTopic){
       return generateDrivers(q, driverTopic);
     }
+    const projectPayload = requireProjectScope();
+    if (!projectPayload) return;
 
     await ensureSession();
 
@@ -1339,7 +1440,7 @@ libToggleBtn.textContent = "SHOW";
       const resp = await fetch(API_BASE + "/api/ask", {
         method:"POST",
         headers: headersJson(),
-        body: JSON.stringify({ sector: currentSector, question: q, history })
+        body: JSON.stringify({ ...projectPayload, sector: currentSector, question: q, history })
       });
       const data = await resp.json().catch(()=>({}));
       if (!resp.ok) throw new Error((data.error || "REQUEST FAILED") + (data.details ? " — " + data.details : ""));
@@ -1358,9 +1459,7 @@ libToggleBtn.textContent = "SHOW";
       loadingMsg.querySelector('.hm-msg-body').innerHTML = escapeHtml("ERROR: " + (e.message || e));
       setStatus("ERROR", true);
     } finally {
-      askBtn.disabled = false;
-      uploadBtn.disabled = false;
-      addUrlBtn.disabled = false;
+      setProjectScopedButtons(false);
     }
   }
 
@@ -1430,8 +1529,10 @@ libToggleBtn.textContent = "SHOW";
     addSys("NEW SESSION READY (UPLOAD PDFS)");
   });
 
-  setStatus(sessionToken ? `SESSION READY (${currentSector})` : `READY (${currentSector.toUpperCase()} UPLOAD PDFS)`);
-  refreshLibrary();
+  syncSelectedProject({ force: true });
+  window.setInterval(() => {
+    syncSelectedProject({ resetOnChange: true });
+  }, 800);
 
 
    // =========================
@@ -1605,6 +1706,8 @@ libToggleBtn.textContent = "SHOW";
     
     const theme = (mapThemeEl.value || "").trim();
     if (!theme) return addSys("ENTER A THEME FOR THE FUTURE MAP", true);
+    const projectPayload = requireProjectScope();
+    if (!projectPayload) return;
 
     setStatus("GENERATING FUTURE MAP…");
     // Create loading message
@@ -1627,7 +1730,7 @@ libToggleBtn.textContent = "SHOW";
       const resp = await fetch(API_BASE + "/api/future-map", {
         method: "POST",
         headers: headersJson(),
-        body: JSON.stringify({ sector: currentSector, theme })
+        body: JSON.stringify({ ...projectPayload, sector: currentSector, theme })
       });
       const data = await resp.json().catch(()=>({}));
       if (!resp.ok) throw new Error((data.error || "FUTURE MAP FAILED") + (data.details ? " — " + data.details : ""));
@@ -1641,7 +1744,7 @@ libToggleBtn.textContent = "SHOW";
       loadingMsg.querySelector('.hm-msg-body').innerHTML = escapeHtml("FUTURE MAP ERROR: " + (e.message || e));
       setStatus("ERROR", true);
     } finally {
-      mapGenBtn.disabled = false;
+      setProjectScopedButtons(false);
     }
   }
 
